@@ -4,10 +4,7 @@ import snowy.autumn.tor.cell.Cell;
 import snowy.autumn.tor.cell.cells.*;
 import snowy.autumn.tor.circuit.Circuit;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -15,7 +12,9 @@ import java.nio.ByteBuffer;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -32,8 +31,8 @@ public class Guard extends Relay {
     private final ReentrantLock circuitsLock = new ReentrantLock();
     private final HashMap<Integer, Circuit> circuitHashMap = new HashMap<>();
 
-    public Guard(String host, int port, byte[] rsaId) {
-        super(host, port, rsaId);
+    public Guard(String host, int port, byte[] fingerprint) {
+        super(host, port, fingerprint);
     }
 
     protected boolean write(byte[] data) {
@@ -158,7 +157,11 @@ public class Guard extends Relay {
         if (highestSupportedVersion == 0) return Boolean.TRUE.equals(terminate());
         CertsCell certsCell = receiveNextCell();
         if (certsCell == null) return Boolean.TRUE.equals(terminated());
-        if (!certsCell.verifyCertificates()) return Boolean.TRUE.equals(terminate());
+        try {
+            if (!certsCell.verifyCertificates(socket.getSession().getPeerCertificates()[0].getEncoded())) return Boolean.TRUE.equals(terminate());
+        } catch (CertificateEncodingException | SSLPeerUnverifiedException e) {
+            throw new RuntimeException(e);
+        }
         AuthChallengeCell authChallengeCell = receiveNextCell();
         if (authChallengeCell == null) return Boolean.TRUE.equals(terminated());
         NetInfoCell netInfoCell = receiveNextCell();

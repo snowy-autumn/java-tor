@@ -9,12 +9,12 @@ public class Relay {
 
     String host;
     int port;
-    byte[] rsaId;
+    byte[] fingerprint;
 
-    public Relay(String host, int port, byte[] rsaId) {
+    public Relay(String host, int port, byte[] fingerprint) {
         this.host = host;
         this.port = port;
-        this.rsaId = rsaId;
+        this.fingerprint = fingerprint;
     }
 
     public void received(Circuit circuit) {
