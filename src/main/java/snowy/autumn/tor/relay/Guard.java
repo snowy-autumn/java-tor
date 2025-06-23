@@ -173,7 +173,7 @@ public class Guard extends Relay {
         return true;
     }
 
-    // Note: ConcurrentHashMap<K, V> could be used here instead, but from my experience it causes more trouble than it solves.
+    // Note: ConcurrentHashMap<K, V> could be used here (and probably in lots of other places) instead, but from my experience it causes more problems than it solves.
     public void addCircuit(int circuitId, Circuit circuit) {
         circuitsLock.lock();
         circuitHashMap.put(circuitId, circuit);

@@ -8,7 +8,7 @@ import snowy.autumn.tor.cell.cells.relay.RelayCell;
 import snowy.autumn.tor.cell.cells.relay.commands.*;
 import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.crypto.Keys;
-import snowy.autumn.tor.directory.Consensus;
+import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.relay.Guard;
 import snowy.autumn.tor.relay.Relay;
 
@@ -48,8 +48,8 @@ public class Circuit {
         init();
     }
 
-    public void updateFromConsensus(Consensus consensus) {
-        sendMeVersion = consensus.sendMeEmitMinVersion();
+    public void updateFromConsensus(MicrodescConsensus microdescConsensus) {
+        sendMeVersion = microdescConsensus.sendMeEmitMinVersion();
     }
 
     private void init() {

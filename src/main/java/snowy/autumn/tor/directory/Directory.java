@@ -4,6 +4,7 @@ import snowy.autumn.tor.cell.cells.relay.RelayCell;
 import snowy.autumn.tor.cell.cells.relay.commands.DataCommand;
 import snowy.autumn.tor.cell.cells.relay.commands.EndCommand;
 import snowy.autumn.tor.circuit.Circuit;
+import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.relay.Guard;
 
 import java.util.Random;
@@ -13,7 +14,7 @@ public class Directory {
     Circuit circuit;
     Random random = new Random();
     Guard guard;
-    Consensus consensus;
+    MicrodescConsensus microdescConsensus;
 
     public Directory(String host, int port, byte[] fingerprint) {
         this.guard = new Guard(host, port, fingerprint);
@@ -44,10 +45,10 @@ public class Directory {
         return null;
     }
 
-    public Consensus fetchConsensus() {
-        if (circuit == null) throw new Error("Cannot fetch a consensus when the circuit is null.");
+    public MicrodescConsensus fetchConsensus() {
+        if (circuit == null) throw new Error("Cannot fetch any type of consensus when the circuit is null.");
         String consensus = httpRequest("GET /tor/status-vote/current/consensus-microdesc/D586D1+14C131+E8A9C4+ED03BB+0232AF+49015F+EFCBE7+23D15D+27102B HTTP/1.0\r\n\r\n");
-        return consensus == null ? null : Consensus.parse(consensus);
+        return consensus == null ? null : MicrodescConsensus.parse(consensus);
     }
 
     public boolean destroyCircuit() {
