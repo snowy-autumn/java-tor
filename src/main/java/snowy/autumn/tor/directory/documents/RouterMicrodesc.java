@@ -1,5 +1,33 @@
 package snowy.autumn.tor.directory.documents;
 
-public record RouterMicrodesc(String host, int port, byte[] fingerprint, String microdescHash) {
+import java.util.Arrays;
+import java.util.Base64;
 
+public class RouterMicrodesc {
+
+    String host;
+    int port;
+    byte[] fingerprint;
+    String microdescHash;
+    byte[] ntorOnionKey;
+
+    public RouterMicrodesc(String host, int port, byte[] fingerprint, String microdescHash) {
+        this.host = host;
+        this.port = port;
+        this.fingerprint = fingerprint;
+        this.microdescHash = microdescHash;
+    }
+
+    public void updateFromMicrodesc(String microdesc) {
+        int ntorOnionKeyStart = microdesc.indexOf("ntor-onion-key");
+        ntorOnionKey = Base64.getDecoder().decode(microdesc.substring(ntorOnionKeyStart, microdesc.indexOf('\n', ntorOnionKeyStart)).split(" ")[1]);
+    }
+
+    public String getMicrodescHash() {
+        return microdescHash;
+    }
+
+    public byte[] getNtorOnionKey() {
+        return ntorOnionKey;
+    }
 }

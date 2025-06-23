@@ -17,10 +17,10 @@ public class Relay {
         this.fingerprint = fingerprint;
     }
 
-    public void received(Circuit circuit) {
+    public void received(Circuit circuit, byte[] digest) {
         total++;
         if (--deliverWindow <= 900) {
-            circuit.handleSendMe((short) 0);
+            circuit.handleSendMe((short) 0, digest);
             deliverWindow += 100;
         }
     }

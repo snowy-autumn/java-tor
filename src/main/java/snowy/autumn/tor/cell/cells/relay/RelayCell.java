@@ -4,8 +4,10 @@ import snowy.autumn.tor.cell.Cell;
 import snowy.autumn.tor.cell.cells.relay.commands.ConnectedCommand;
 import snowy.autumn.tor.cell.cells.relay.commands.DataCommand;
 import snowy.autumn.tor.cell.cells.relay.commands.EndCommand;
+import snowy.autumn.tor.cell.cells.relay.commands.SendMeCommand;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Random;
 
 public abstract class RelayCell extends Cell {
@@ -93,6 +95,15 @@ public abstract class RelayCell extends Cell {
         }
         else if (command == END) {
             return (T) new EndCommand(circuitId, streamId, data[0]);
+        }
+        else if (command == SENDME) {
+            buffer = ByteBuffer.wrap(data);
+            byte sendMeVersion = buffer.get();
+            // Technically if the version is not recognised then the circuit should be torn down, but not very important right now.
+            if (sendMeVersion == 0) return (T) new SendMeCommand(circuitId, streamId, sendMeVersion);
+            byte[] digest = new byte[buffer.getShort()];
+            buffer.get(digest);
+            return (T) new SendMeCommand(circuitId, streamId, sendMeVersion, digest);
         }
 
         throw new Error("Unknown relay command received: " + command);

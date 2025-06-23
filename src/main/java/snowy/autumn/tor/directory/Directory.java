@@ -5,9 +5,16 @@ import snowy.autumn.tor.cell.cells.relay.commands.DataCommand;
 import snowy.autumn.tor.cell.cells.relay.commands.EndCommand;
 import snowy.autumn.tor.circuit.Circuit;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
+import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Guard;
 
-import java.util.Random;
+import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 
 public class Directory {
 
@@ -31,7 +38,7 @@ public class Directory {
     private String httpRequest(String request) {
         short streamId = (short) random.nextInt();
         if (!circuit.openDirStream(streamId)) return null;
-        circuit.sendCell(new DataCommand(circuit.getCircuitId(), streamId, request.getBytes()));
+        circuit.sendData(streamId, request.getBytes());
         RelayCell relayCell;
         StringBuilder response = new StringBuilder();
         while (true) {
@@ -45,10 +52,53 @@ public class Directory {
         return null;
     }
 
-    public MicrodescConsensus fetchConsensus() {
+    public MicrodescConsensus fetchMicrodescConsensus() {
         if (circuit == null) throw new Error("Cannot fetch any type of consensus when the circuit is null.");
         String consensus = httpRequest("GET /tor/status-vote/current/consensus-microdesc/D586D1+14C131+E8A9C4+ED03BB+0232AF+49015F+EFCBE7+23D15D+27102B HTTP/1.0\r\n\r\n");
         return consensus == null ? null : MicrodescConsensus.parse(consensus);
+    }
+
+    private boolean fetchMicrodescriptors(List<RouterMicrodesc> microdescs) {
+        String requestPath = String.join("-", microdescs.stream().map(RouterMicrodesc::getMicrodescHash).toList());
+        String response = httpRequest("GET /tor/micro/d/" + requestPath + " HTTP/1.0\r\n\r\n");
+        if (response == null) return false;
+        String[] microdescriptors = response.substring(response.indexOf("onion-key\n") + "onion-key\n".length()).split("onion-key\n");
+        if (microdescriptors.length != microdescs.size())
+            return false; // Ideally we'd want to be able to identify which one is missing but for now we'll treat it as a failure.
+
+        for (int i = 0; i < microdescriptors.length; i++) {
+            microdescs.get(i).updateFromMicrodesc(microdescriptors[i]);
+        }
+
+        return true;
+    }
+
+    public boolean fetchMicrodescriptors(MicrodescConsensus microdescConsensus) {
+        ArrayList<RouterMicrodesc> microdescs = microdescConsensus.getMicrodescs();
+        int maxPerMirror = 128;
+        int maxPerRequest = 92;
+        // We sort them in their respective chunks in a descending order, so that we could more easily identify them later on.
+        List<List<RouterMicrodesc>> chunks = IntStream.range(0, (microdescs.size() + maxPerMirror - 1) / maxPerMirror)
+                .mapToObj(i -> microdescs.subList(i * maxPerMirror, Math.min(microdescs.size(), (i + 1) * maxPerMirror))
+                        .stream().sorted((a, b) ->
+                                Arrays.compare(Base64.getDecoder().decode(b.getMicrodescHash()), Base64.getDecoder().decode(a.getMicrodescHash())))
+                        .toList()).toList();
+
+        // Todo: Change this to fetch from a few mirrors at once, as it should be.
+        for (List<RouterMicrodesc> chunk : chunks) {
+            if (chunk.size() > maxPerRequest) {
+                List<List<RouterMicrodesc>> temporary = IntStream.range(0, 2).mapToObj(i -> chunk.subList(i * maxPerRequest, Math.min(chunk.size(), (i + 1) * maxPerRequest))).toList();
+                for (List<RouterMicrodesc> sub : temporary)
+                    if (!fetchMicrodescriptors(sub)) return false;
+            }
+            else if (!fetchMicrodescriptors(chunk)) return false;
+        }
+
+        return true;
+    }
+
+    public void updateCircuit(MicrodescConsensus microdescConsensus) {
+        circuit.updateFromConsensus(microdescConsensus);
     }
 
     public boolean destroyCircuit() {

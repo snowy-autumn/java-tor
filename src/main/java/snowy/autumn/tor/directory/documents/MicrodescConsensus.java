@@ -1,17 +1,11 @@
 package snowy.autumn.tor.directory.documents;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.HashMap;
+import java.util.*;
 
 public class MicrodescConsensus {
 
     HashMap<String, Integer> params = new HashMap<>();
-    ArrayList<RouterMicrodesc> microdescRefs = new ArrayList<>();
+    ArrayList<RouterMicrodesc> microdescs = new ArrayList<>();
 
     public MicrodescConsensus() {
 
@@ -38,13 +32,19 @@ public class MicrodescConsensus {
             String host = routerInfo[4];
             int port = Integer.parseInt(routerInfo[5]);
             String microdescHash = ref.substring(ref.indexOf("\nm ") + 3).split("\n")[0];
-            microdescConsensus.microdescRefs.add(new RouterMicrodesc(host, port, fingerprint, microdescHash));
+            microdescConsensus.microdescs.add(new RouterMicrodesc(host, port, fingerprint, microdescHash));
         }
+
+        Collections.shuffle(microdescConsensus.microdescs);
 
         return microdescConsensus;
     }
 
     public int sendMeEmitMinVersion() {
         return params.get("sendme_emit_min_version");
+    }
+
+    public ArrayList<RouterMicrodesc> getMicrodescs() {
+        return microdescs;
     }
 }

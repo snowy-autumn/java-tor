@@ -12,6 +12,7 @@ import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.relay.Guard;
 import snowy.autumn.tor.relay.Relay;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -23,6 +24,8 @@ public class Circuit {
     Guard guard;
 
     ArrayList<Cell> pendingCells = new ArrayList<>();
+    HashSet<byte[]> lastDigests = new HashSet<>();
+    ReentrantLock lastDigestsLock = new ReentrantLock();
     private final ReentrantLock pendingCellsLock = new ReentrantLock();
     HashMap<Short, Stream> streamDataHashMap = new HashMap<>();
     private final ReentrantLock streamsLock = new ReentrantLock();
@@ -58,11 +61,12 @@ public class Circuit {
 
     public void addCell(Cell cell) {
         pendingCellsLock.lock();
+        byte[] decryptedDigest = null;
         if (cell instanceof RelayCell.EncryptedRelayCell encryptedRelayCell) {
             byte[] encryptedBody = encryptedRelayCell.getEncryptedBody();
             for (Keys keys : relayKeys)
                 encryptedBody = keys.decryptionKey().update(encryptedBody);
-            byte[] decryptedDigest = new byte[4];
+            decryptedDigest = new byte[4];
             System.arraycopy(encryptedBody, 5, decryptedDigest, 0, decryptedDigest.length);
             Arrays.fill(encryptedBody, 5, 9, (byte) 0);
             byte[] digest = Arrays.copyOf(Cryptography.updateDigest(relayKeys.getLast().digestBackward(), encryptedBody), 4);
@@ -74,8 +78,8 @@ public class Circuit {
             streamsLock.lock();
             Stream stream = streamDataHashMap.get(dataCommand.getStreamId());
             if (stream == null) throw new Error("Invalid stream id: " + dataCommand.getStreamId());
-            stream.received(this);
-            relays.getLast().received(this);
+            stream.received(this, decryptedDigest);
+            relays.getLast().received(this, decryptedDigest);
             streamsLock.unlock();
         }
         else if (cell instanceof EndCommand endCommand) {
@@ -83,13 +87,28 @@ public class Circuit {
             streamDataHashMap.remove(endCommand.getStreamId());
             streamsLock.unlock();
         }
+        else if (cell instanceof SendMeCommand sendMeCommand) {
+            if (sendMeCommand.getSendMeVersion() == 1) {
+                lastDigestsLock.lock();
+                if (lastDigests.stream().noneMatch(digest -> Arrays.equals(digest, sendMeCommand.getDigest()))) {
+                    // The spec isn't very specific about this, but I assume the circuit should be torn down if this ever happens.
+                    System.out.println("VERY WRONG");
+                    destroy();
+                }
+                else lastDigests.clear();
+                lastDigestsLock.unlock();
+            }
+            pendingCellsLock.unlock();
+            return;
+        }
 
         pendingCells.add(cell);
         pendingCellsLock.unlock();
     }
 
-    public void handleSendMe(short streamId) {
-        sendCell(new SendMeCommand(circuitId, streamId, streamId == 0 ? 0 : sendMeVersion));
+    public void handleSendMe(short streamId, byte[] digest) {
+        sendCell(streamId == 0 ? new SendMeCommand(circuitId, streamId, sendMeVersion)
+                : new SendMeCommand(circuitId, streamId, sendMeVersion, digest));
     }
 
     @SuppressWarnings("unchecked")
@@ -144,6 +163,9 @@ public class Circuit {
             byte[] body = relayCell.serialiseBody();
             // update the digest field
             byte[] digest = Cryptography.updateDigest(relayKeys.getLast().digestForward(), body);
+            lastDigestsLock.lock();
+            lastDigests.add(digest);
+            lastDigestsLock.unlock();
             System.arraycopy(digest, 0, body, 5, 4);
             // encrypt the relay cell body
             for (int i = relayKeys.size() - 1; i >= 0; i--) {
@@ -175,6 +197,16 @@ public class Circuit {
         sendCell(new BeginDirCommand(circuitId, streamId));
         RelayCell relayCell = waitForRelayCell(streamId, RelayCell.CONNECTED, RelayCell.END);
         return relayCell instanceof ConnectedCommand;
+    }
+
+    public boolean sendData(short streamId, byte[] data) {
+        ByteBuffer buffer = ByteBuffer.wrap(data);
+        while (buffer.hasRemaining()) {
+            byte[] next = new byte[Math.min(DataCommand.MAX_DATA_SIZE, buffer.remaining())];
+            buffer.get(next);
+            if (!sendCell(new DataCommand(circuitId, streamId, next))) return false;
+        }
+        return true;
     }
 
     public boolean destroy() {
