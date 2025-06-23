@@ -3,7 +3,6 @@ package snowy.autumn.tor.cell.cells;
 import com.google.crypto.tink.signature.Ed25519PublicKey;
 import com.google.crypto.tink.subtle.Ed25519Verify;
 import com.google.crypto.tink.util.Bytes;
-import com.google.protobuf.InvalidProtocolBufferException;
 import snowy.autumn.tor.cell.Cell;
 import snowy.autumn.tor.crypto.Cryptography;
 

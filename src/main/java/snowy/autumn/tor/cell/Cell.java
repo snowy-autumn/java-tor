@@ -17,6 +17,8 @@ public abstract class Cell {
     public static final byte NET_INFO = 8;
     public static final byte CREATE_FAST = 5;
     public static final byte CREATED_FAST = 6;
+    public static final byte CREATE2 = 10;
+    public static final byte CREATED2 = 11;
     public static final byte RELAY = 3;
     public static final byte RELAY_EARLY = 9;
     public static final byte DESTROY = 4;
@@ -108,6 +110,15 @@ public abstract class Cell {
                 buffer.get(keyMaterial);
                 buffer.get(KH);
                 return (T) new CreatedFastCell(circuitId, keyMaterial, KH);
+            }
+            case CREATED2 -> {
+                // Since we're only using the ntor handshake, we don't need to worry about parsing other handshake types at the moment.
+                buffer.getShort(); // This should always be 64, so we can discard it.
+                byte[] publicKey = new byte[32];
+                buffer.get(publicKey);
+                byte[] auth = new byte[32];
+                buffer.get(auth);
+                return (T) new Created2Cell(circuitId, publicKey, auth);
             }
             case RELAY -> {
                 return (T) new RelayCell.EncryptedRelayCell(circuitId, body);

@@ -7,7 +7,6 @@ import snowy.autumn.tor.cell.cells.relay.commands.EndCommand;
 import snowy.autumn.tor.cell.cells.relay.commands.SendMeCommand;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Random;
 
 public abstract class RelayCell extends Cell {
@@ -31,11 +30,14 @@ public abstract class RelayCell extends Cell {
         }
     }
 
+    public static final byte BEGIN = 1;
     public static final byte BEGIN_DIR = 13;
     public static final byte CONNECTED = 4;
     public static final byte END = 3;
     public static final byte DATA = 2;
     public static final byte SENDME = 5;
+    public static final byte EXTEND2 = 14;
+    public static final byte EXTENDED2 = 15;
 
     protected byte relayCommand;
     short streamId;

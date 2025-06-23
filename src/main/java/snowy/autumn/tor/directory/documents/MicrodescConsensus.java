@@ -1,6 +1,9 @@
 package snowy.autumn.tor.directory.documents;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
 
 public class MicrodescConsensus {
 

@@ -1,14 +1,13 @@
 package snowy.autumn.tor.circuit;
 
 import snowy.autumn.tor.cell.Cell;
-import snowy.autumn.tor.cell.cells.CreateFastCell;
-import snowy.autumn.tor.cell.cells.CreatedFastCell;
-import snowy.autumn.tor.cell.cells.DestroyCell;
+import snowy.autumn.tor.cell.cells.*;
 import snowy.autumn.tor.cell.cells.relay.RelayCell;
 import snowy.autumn.tor.cell.cells.relay.commands.*;
 import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.crypto.Keys;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
+import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Guard;
 import snowy.autumn.tor.relay.Relay;
 
@@ -186,10 +185,27 @@ public class Circuit {
         return createdFastCell.verify(keys) || Boolean.TRUE.equals(guard.terminate());
     }
 
+    public boolean create2(RouterMicrodesc routerMicrodesc) {
+        Create2Cell create2Cell = new Create2Cell(circuitId, routerMicrodesc);
+        guard.sendCell(create2Cell);
+        Created2Cell created2Cell = waitForCellByCommand(Cell.CREATED2);
+        Keys keys = create2Cell.finishNtorHandshake(created2Cell);
+        relayKeys.add(keys);
+        this.connected = CONNECTED;
+        return keys != null || Boolean.TRUE.equals(guard.terminate());
+    }
+
     private void addStream(short streamId) {
         streamsLock.lock();
         streamDataHashMap.put(streamId, new Stream(streamId));
         streamsLock.unlock();
+    }
+
+    public boolean openStream(short streamId) {
+        addStream(streamId);
+        sendCell(new BeginCommand(circuitId, streamId));
+        RelayCell relayCell = waitForRelayCell(streamId, RelayCell.CONNECTED, RelayCell.END);
+        return relayCell instanceof ConnectedCommand;
     }
 
     public boolean openDirStream(short streamId) {

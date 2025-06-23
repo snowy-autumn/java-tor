@@ -1,6 +1,5 @@
 package snowy.autumn.tor.directory.documents;
 
-import java.util.Arrays;
 import java.util.Base64;
 
 public class RouterMicrodesc {
@@ -25,6 +24,18 @@ public class RouterMicrodesc {
 
     public String getMicrodescHash() {
         return microdescHash;
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public byte[] getFingerprint() {
+        return fingerprint;
     }
 
     public byte[] getNtorOnionKey() {
