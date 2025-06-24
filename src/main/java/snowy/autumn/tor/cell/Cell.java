@@ -4,6 +4,7 @@ import snowy.autumn.tor.cell.cells.*;
 import snowy.autumn.tor.cell.cells.relay.RelayCell;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public abstract class Cell {
 
@@ -52,7 +53,7 @@ public abstract class Cell {
             buffer.putShort((short) circuitId);
         else
             buffer.putInt(circuitId);
-        buffer.put((byte) command);
+        buffer.put(command);
         if (!fixedLengthCell)
             buffer.putShort((short) body.length);
         buffer.put(body);
@@ -112,7 +113,8 @@ public abstract class Cell {
                 return (T) new CreatedFastCell(circuitId, keyMaterial, KH);
             }
             case CREATED2 -> {
-                // Since we're only using the ntor handshake, we don't need to worry about parsing other handshake types at the moment.
+                // Since we're only using the ntor handshake at the moment (NOT GOOD PRACTICE FOR MODERN CLIENTS),
+                // we don't need to worry about parsing other handshake types.
                 buffer.getShort(); // This should always be 64, so we can discard it.
                 byte[] publicKey = new byte[32];
                 buffer.get(publicKey);
@@ -121,7 +123,7 @@ public abstract class Cell {
                 return (T) new Created2Cell(circuitId, publicKey, auth);
             }
             case RELAY -> {
-                return (T) new RelayCell.EncryptedRelayCell(circuitId, body);
+                return (T) new RelayCell.EncryptedRelayCell(circuitId, false, body);
             }
             case DESTROY -> {
                 return (T) new DestroyCell(circuitId, body[0]);

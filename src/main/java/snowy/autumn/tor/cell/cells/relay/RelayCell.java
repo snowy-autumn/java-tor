@@ -1,12 +1,11 @@
 package snowy.autumn.tor.cell.cells.relay;
 
 import snowy.autumn.tor.cell.Cell;
-import snowy.autumn.tor.cell.cells.relay.commands.ConnectedCommand;
-import snowy.autumn.tor.cell.cells.relay.commands.DataCommand;
-import snowy.autumn.tor.cell.cells.relay.commands.EndCommand;
-import snowy.autumn.tor.cell.cells.relay.commands.SendMeCommand;
+import snowy.autumn.tor.cell.cells.Created2Cell;
+import snowy.autumn.tor.cell.cells.relay.commands.*;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Random;
 
 public abstract class RelayCell extends Cell {
@@ -15,8 +14,8 @@ public abstract class RelayCell extends Cell {
 
         byte[] encryptedBody;
 
-        public EncryptedRelayCell(int circuitId, byte[] encryptedBody) {
-            super(circuitId, RELAY);
+        public EncryptedRelayCell(int circuitId, boolean early, byte[] encryptedBody) {
+            super(circuitId, early ? RELAY_EARLY : RELAY);
             this.encryptedBody = encryptedBody;
         }
 
@@ -41,9 +40,11 @@ public abstract class RelayCell extends Cell {
 
     protected byte relayCommand;
     short streamId;
+    boolean early;
 
     public RelayCell(int circuitId, boolean early, byte relayCommand, short streamId) {
         super(circuitId, early ? RELAY_EARLY : RELAY);
+        this.early = early;
         this.relayCommand = relayCommand;
         this.streamId = streamId;
     }
@@ -55,7 +56,7 @@ public abstract class RelayCell extends Cell {
         ByteBuffer buffer = ByteBuffer.allocate(FIXED_CELL_BODY_LENGTH);
         // Relay command	1 byte
         buffer.put(relayCommand);
-        // ‘Recognized’	2 bytes
+        // ‘Recognized`	2 bytes
         buffer.putShort((short) 0);
         // StreamID	2 bytes
         buffer.putShort(streamId);
@@ -107,6 +108,17 @@ public abstract class RelayCell extends Cell {
             buffer.get(digest);
             return (T) new SendMeCommand(circuitId, streamId, sendMeVersion, digest);
         }
+        else if (command == EXTENDED2) {
+            buffer = ByteBuffer.wrap(data);
+            // Since we're only using the ntor handshake at the moment (NOT GOOD PRACTICE FOR MODERN CLIENTS),
+            // we don't need to worry about parsing other handshake types.
+            buffer.getShort(); // This should always be 64, so we can discard it.
+            byte[] publicKey = new byte[32];
+            buffer.get(publicKey);
+            byte[] auth = new byte[32];
+            buffer.get(auth);
+            return (T) new Extended2Command(circuitId, publicKey, auth);
+        }
 
         throw new Error("Unknown relay command received: " + command);
     }
@@ -117,5 +129,9 @@ public abstract class RelayCell extends Cell {
 
     public short getStreamId() {
         return streamId;
+    }
+
+    public boolean isEarly() {
+        return early;
     }
 }

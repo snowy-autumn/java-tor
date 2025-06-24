@@ -13,6 +13,7 @@ import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import com.google.crypto.tink.hybrid.internal.X25519.KeyPair;
 
 public class Cryptography {
 
@@ -27,6 +28,7 @@ public class Cryptography {
     public static final String NTOR_t_mac    = NTOR_PROTOID + ":mac";
     public static final String NTOR_t_key    = NTOR_PROTOID + ":key_extract";
     public static final String NTOR_t_verify = NTOR_PROTOID + ":verify";
+    public static final String NTOR_m_expand = NTOR_PROTOID + ":key_expand";
 
     public static MessageDigest createDigest(String algorithm) {
         try {
@@ -123,11 +125,11 @@ public class Cryptography {
             int totalSize = 92;
             ByteBuffer finalKey = ByteBuffer.allocate(totalSize);
             for (int keyNumber = 1; totalSize > 0; keyNumber++) {
-                ByteBuffer temp = ByteBuffer.allocate(prev.length + NTOR_t_key.length() + 1);
+                ByteBuffer temp = ByteBuffer.allocate(prev.length + NTOR_m_expand.length() + 1);
                 temp.put(prev);
-                temp.put(NTOR_t_key.getBytes());
+                temp.put(NTOR_m_expand.getBytes());
                 temp.put((byte) keyNumber);
-                prev = sha256hmac(keySeed, temp.array());
+                prev = sha256hmac(temp.array(), keySeed);
                 int bytesDone = Math.min(totalSize, prev.length);
                 totalSize -= bytesDone;
                 finalKey.put(prev, 0, bytesDone);
@@ -155,6 +157,19 @@ public class Cryptography {
                  InvalidAlgorithmParameterException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static KeyPair generateX25519KeyPair() {
+        byte[] privateKey = X25519.generatePrivateKey();
+        byte[] publicKey;
+
+        try {
+            publicKey = X25519.publicFromPrivate(privateKey);
+        } catch (InvalidKeyException e) {
+            throw new RuntimeException(e);
+        }
+
+        return new KeyPair(privateKey, publicKey);
     }
 
 }

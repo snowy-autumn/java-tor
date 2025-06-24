@@ -1,21 +1,21 @@
-package snowy.autumn.tor.cell.cells;
+package snowy.autumn.tor.cell.cells.relay.commands;
 
-import snowy.autumn.tor.cell.Cell;
+import snowy.autumn.tor.cell.cells.relay.RelayCell;
 
-public class Created2Cell extends Cell {
+public class Extended2Command extends RelayCell {
 
     byte[] relayPublicKey;
     byte[] auth;
 
-    public Created2Cell(int circuitId, byte[] relayPublicKey, byte[] auth) {
-        super(circuitId, CREATED2);
+    public Extended2Command(int circuitId, byte[] relayPublicKey, byte[] auth) {
+        super(circuitId, false, EXTENDED2, (short) 0);
         this.relayPublicKey = relayPublicKey;
         this.auth = auth;
     }
 
     @ClientDoesNotImplement
     @Override
-    protected byte[] serialiseBody() {
+    protected byte[] serialiseRelayBody() {
         return new byte[0];
     }
 

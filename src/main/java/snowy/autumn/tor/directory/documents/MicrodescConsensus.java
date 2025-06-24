@@ -1,9 +1,6 @@
 package snowy.autumn.tor.directory.documents;
 
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.*;
 
 public class MicrodescConsensus {
 
@@ -35,7 +32,13 @@ public class MicrodescConsensus {
             String host = routerInfo[4];
             int port = Integer.parseInt(routerInfo[5]);
             String microdescHash = ref.substring(ref.indexOf("\nm ") + 3).split("\n")[0];
-            microdescConsensus.microdescs.add(new RouterMicrodesc(host, port, fingerprint, microdescHash));
+
+            String[] routerIpv6Info = new String[2];
+
+            if (ref.contains("\na "))
+                routerIpv6Info = ref.substring(ref.indexOf("\na ") + 3).split("\n")[0].substring(1).split("]:");
+
+            microdescConsensus.microdescs.add(new RouterMicrodesc(host, port, fingerprint, microdescHash, routerIpv6Info[0], routerIpv6Info[0] == null ? -1 : Integer.parseInt(routerIpv6Info[1])));
         }
 
         Collections.shuffle(microdescConsensus.microdescs);

@@ -9,6 +9,7 @@ import snowy.autumn.tor.crypto.Keys;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Guard;
+import snowy.autumn.tor.relay.Handshakes;
 import snowy.autumn.tor.relay.Relay;
 
 import java.nio.ByteBuffer;
@@ -162,6 +163,7 @@ public class Circuit {
             byte[] body = relayCell.serialiseBody();
             // update the digest field
             byte[] digest = Cryptography.updateDigest(relayKeys.getLast().digestForward(), body);
+            // Todo: Replace this part with an actual calculation of when the relay would send a SEND ME command and store only the right digest.
             lastDigestsLock.lock();
             lastDigests.add(digest);
             lastDigestsLock.unlock();
@@ -170,7 +172,7 @@ public class Circuit {
             for (int i = relayKeys.size() - 1; i >= 0; i--) {
                 body = relayKeys.get(i).encryptionKey().update(body);
             }
-            return guard.sendCell(new RelayCell.EncryptedRelayCell(circuitId, body));
+            return guard.sendCell(new RelayCell.EncryptedRelayCell(circuitId, relayCell.isEarly(), body));
         }
         else return guard.sendCell(cell);
     }
@@ -189,9 +191,18 @@ public class Circuit {
         Create2Cell create2Cell = new Create2Cell(circuitId, routerMicrodesc);
         guard.sendCell(create2Cell);
         Created2Cell created2Cell = waitForCellByCommand(Cell.CREATED2);
-        Keys keys = create2Cell.finishNtorHandshake(created2Cell);
+        Keys keys = Handshakes.finishNtorHandshake(routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), create2Cell.getKeyPair(), created2Cell.getPublicKey(), created2Cell.getAuth());
         relayKeys.add(keys);
         this.connected = CONNECTED;
+        return keys != null || Boolean.TRUE.equals(guard.terminate());
+    }
+
+    public boolean extend2(RouterMicrodesc routerMicrodesc) {
+        Extend2Command extend2Command = new Extend2Command(circuitId, routerMicrodesc);
+        sendCell(extend2Command);
+        Extended2Command extended2Command = waitForRelayCell((short) 0, RelayCell.EXTENDED2);
+        Keys keys = Handshakes.finishNtorHandshake(routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), extend2Command.getKeyPair(), extended2Command.getPublicKey(), extended2Command.getAuth());
+        relayKeys.add(keys);
         return keys != null || Boolean.TRUE.equals(guard.terminate());
     }
 
