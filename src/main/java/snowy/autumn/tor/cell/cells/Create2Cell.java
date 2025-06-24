@@ -1,15 +1,12 @@
 package snowy.autumn.tor.cell.cells;
 
 import com.google.crypto.tink.hybrid.internal.X25519.KeyPair;
-import com.google.crypto.tink.subtle.X25519;
 import snowy.autumn.tor.cell.Cell;
 import snowy.autumn.tor.crypto.Cryptography;
-import snowy.autumn.tor.crypto.Keys;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Handshakes;
 
 import java.nio.ByteBuffer;
-import java.security.InvalidKeyException;
 
 public class Create2Cell extends Cell {
 

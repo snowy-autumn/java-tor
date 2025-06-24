@@ -4,7 +4,6 @@ import snowy.autumn.tor.cell.cells.*;
 import snowy.autumn.tor.cell.cells.relay.RelayCell;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 public abstract class Cell {
 

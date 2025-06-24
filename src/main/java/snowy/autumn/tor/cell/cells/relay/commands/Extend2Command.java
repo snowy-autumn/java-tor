@@ -1,6 +1,6 @@
 package snowy.autumn.tor.cell.cells.relay.commands;
 
-import com.google.crypto.tink.subtle.X25519;
+import com.google.crypto.tink.hybrid.internal.X25519.KeyPair;
 import snowy.autumn.tor.cell.cells.relay.RelayCell;
 import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
@@ -9,9 +9,7 @@ import snowy.autumn.tor.relay.Handshakes;
 import java.net.Inet6Address;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.security.InvalidKeyException;
 import java.util.Arrays;
-import com.google.crypto.tink.hybrid.internal.X25519.KeyPair;
 
 public class Extend2Command extends RelayCell {
 
@@ -35,7 +33,7 @@ public class Extend2Command extends RelayCell {
         // Link specifier data length
         buffer.put((byte) 6);
         // Link specifier data
-        Arrays.stream(host.split("\\.")).mapToInt(Integer::parseInt).forEach(i -> buffer.put((byte) i));
+        Arrays.stream(host.split("\\.")).forEachOrdered(i -> buffer.put((byte) Integer.parseInt(i)));
         buffer.putShort((short) port);
         return buffer.array();
     }

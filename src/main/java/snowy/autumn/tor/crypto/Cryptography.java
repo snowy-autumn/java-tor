@@ -1,5 +1,6 @@
 package snowy.autumn.tor.crypto;
 
+import com.google.crypto.tink.hybrid.internal.X25519.KeyPair;
 import com.google.crypto.tink.subtle.X25519;
 
 import javax.crypto.Cipher;
@@ -13,7 +14,6 @@ import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import com.google.crypto.tink.hybrid.internal.X25519.KeyPair;
 
 public class Cryptography {
 

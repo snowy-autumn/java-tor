@@ -1,11 +1,9 @@
 package snowy.autumn.tor.cell.cells.relay;
 
 import snowy.autumn.tor.cell.Cell;
-import snowy.autumn.tor.cell.cells.Created2Cell;
 import snowy.autumn.tor.cell.cells.relay.commands.*;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Random;
 
 public abstract class RelayCell extends Cell {
@@ -56,7 +54,7 @@ public abstract class RelayCell extends Cell {
         ByteBuffer buffer = ByteBuffer.allocate(FIXED_CELL_BODY_LENGTH);
         // Relay command	1 byte
         buffer.put(relayCommand);
-        // ‘Recognized`	2 bytes
+        // ‘Recognized’	2 bytes
         buffer.putShort((short) 0);
         // StreamID	2 bytes
         buffer.putShort(streamId);

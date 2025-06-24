@@ -1,7 +1,6 @@
 package snowy.autumn.tor.relay;
 
 import com.google.crypto.tink.hybrid.internal.X25519;
-import snowy.autumn.tor.cell.cells.Created2Cell;
 import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.crypto.Keys;
 
