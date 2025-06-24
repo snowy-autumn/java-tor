@@ -212,9 +212,9 @@ public class Circuit {
         streamsLock.unlock();
     }
 
-    public boolean openStream(short streamId) {
+    public boolean openStream(short streamId, String address, int port) {
         addStream(streamId);
-        sendCell(new BeginCommand(circuitId, streamId));
+        sendCell(new BeginCommand(circuitId, streamId, address, port));
         RelayCell relayCell = waitForRelayCell(streamId, RelayCell.CONNECTED, RelayCell.END);
         return relayCell instanceof ConnectedCommand;
     }
