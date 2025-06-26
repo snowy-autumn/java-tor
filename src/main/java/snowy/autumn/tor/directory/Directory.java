@@ -50,10 +50,10 @@ public class Directory {
     public MicrodescConsensus fetchMicrodescConsensus() {
         if (circuit == null) throw new Error("Cannot fetch any type of consensus when the circuit is null.");
         String consensus = httpRequest("GET /tor/status-vote/current/consensus-microdesc/D586D1+14C131+E8A9C4+ED03BB+0232AF+49015F+EFCBE7+23D15D+27102B HTTP/1.0\r\n\r\n");
-        return consensus == null ? null : MicrodescConsensus.parse(consensus);
+        return microdescConsensus = consensus == null ? null : MicrodescConsensus.parse(consensus);
     }
 
-    private boolean fetchMicrodescriptors(List<RouterMicrodesc> microdescs) {
+    public boolean fetchMicrodescriptors(List<RouterMicrodesc> microdescs) {
         String requestPath = String.join("-", microdescs.stream().map(RouterMicrodesc::getMicrodescHash).toList());
         String response = httpRequest("GET /tor/micro/d/" + requestPath + " HTTP/1.0\r\n\r\n");
         if (response == null) return false;
@@ -97,7 +97,7 @@ public class Directory {
     }
 
     public boolean destroyCircuit() {
-        return circuit.destroy();
+        return circuit.destroy(true);
     }
 
 }

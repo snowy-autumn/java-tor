@@ -92,8 +92,8 @@ public class Circuit {
                 lastDigestsLock.lock();
                 if (lastDigests.stream().noneMatch(digest -> Arrays.equals(digest, sendMeCommand.getDigest()))) {
                     // The spec isn't very specific about this, but I assume the circuit should be torn down if this ever happens.
-                    System.out.println("VERY WRONG");
-                    destroy();
+                    System.out.println("VERY WRONG"); // this is here for debug purposes
+                    destroy(false);
                 }
                 else lastDigests.clear();
                 lastDigestsLock.unlock();
@@ -131,9 +131,8 @@ public class Circuit {
     }
 
     public <T extends Cell> T waitForRelayCell(short streamId, Byte... relayCommand) {
-        if (!isConnected() && pendingCells.isEmpty()) return null;
         T cell = null;
-        while (cell == null)
+        while (cell == null && (isConnected() || !pendingCells.isEmpty()))
             cell = getRelayCell(streamId, relayCommand);
         return cell;
     }
@@ -152,6 +151,7 @@ public class Circuit {
     }
 
     private <T extends Cell> T waitForCellByCommand(byte command) {
+        // Todo: Add timeout.
         T cell = null;
         while (cell == null)
             cell = getCellByCommand(command);
@@ -191,6 +191,7 @@ public class Circuit {
         Create2Cell create2Cell = new Create2Cell(circuitId, routerMicrodesc);
         guard.sendCell(create2Cell);
         Created2Cell created2Cell = waitForCellByCommand(Cell.CREATED2);
+        if (created2Cell == null) return false;
         Keys keys = Handshakes.finishNtorHandshake(routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), create2Cell.getKeyPair(), created2Cell.getPublicKey(), created2Cell.getAuth());
         relayKeys.add(keys);
         this.connected = CONNECTED;
@@ -201,6 +202,7 @@ public class Circuit {
         Extend2Command extend2Command = new Extend2Command(circuitId, routerMicrodesc);
         sendCell(extend2Command);
         Extended2Command extended2Command = waitForRelayCell((short) 0, RelayCell.EXTENDED2);
+        if (extended2Command == null) return false;
         Keys keys = Handshakes.finishNtorHandshake(routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), extend2Command.getKeyPair(), extended2Command.getPublicKey(), extended2Command.getAuth());
         relayKeys.add(keys);
         return keys != null || Boolean.TRUE.equals(guard.terminate());
@@ -236,9 +238,11 @@ public class Circuit {
         return true;
     }
 
-    public boolean destroy() {
+    public boolean destroy(boolean terminateGuard) {
         // Clients should always send NONE as the reason for a DESTROY cell.
-        return sendCell(new DestroyCell(circuitId, connected = DestroyCell.NONE));
+        boolean success = sendCell(new DestroyCell(circuitId, connected = DestroyCell.DestroyReason.NONE.getReason()));
+        guard.terminate();
+        return success;
     }
 
     public void destroyed(byte reason) {

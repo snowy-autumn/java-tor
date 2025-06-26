@@ -9,6 +9,9 @@ public class MicrodescConsensus {
 
     HashMap<String, Integer> params = new HashMap<>();
     ArrayList<RouterMicrodesc> microdescs = new ArrayList<>();
+    ArrayList<RouterMicrodesc> potentialGuards = new ArrayList<>();
+    ArrayList<RouterMicrodesc> fastNodes = new ArrayList<>();
+    ArrayList<RouterMicrodesc> potentialExits = new ArrayList<>();
 
     public MicrodescConsensus() {
 
@@ -36,12 +39,24 @@ public class MicrodescConsensus {
             int port = Integer.parseInt(routerInfo[5]);
             String microdescHash = ref.substring(ref.indexOf("\nm ") + 3).split("\n")[0];
 
+            // Todo: verify the all flags are listed in the consensus's known-flags listing.
+            String statusFlags = ref.substring(ref.indexOf("\ns ") + 3).split("\n")[0].strip().toLowerCase();
+
             String[] routerIpv6Info = new String[2];
 
             if (ref.contains("\na "))
                 routerIpv6Info = ref.substring(ref.indexOf("\na ") + 3).split("\n")[0].substring(1).split("]:");
 
-            microdescConsensus.microdescs.add(new RouterMicrodesc(host, port, fingerprint, microdescHash, routerIpv6Info[0], routerIpv6Info[0] == null ? -1 : Integer.parseInt(routerIpv6Info[1])));
+            RouterMicrodesc microdesc = new RouterMicrodesc(host, port, fingerprint, microdescHash, routerIpv6Info[0], routerIpv6Info[0] == null ? -1 : Integer.parseInt(routerIpv6Info[1]));
+
+            // We'll check whether the node is listed as Stable, Running and Valid.
+            if (statusFlags.contains("stable") && statusFlags.contains("running") && statusFlags.contains("valid")) {
+                if (statusFlags.contains("guard")) microdescConsensus.potentialGuards.add(microdesc);
+                if (statusFlags.contains("exit") && !statusFlags.contains("badexit")) microdescConsensus.potentialExits.add(microdesc);
+                if (statusFlags.contains("fast")) microdescConsensus.fastNodes.add(microdesc);
+            }
+
+            microdescConsensus.microdescs.add(microdesc);
         }
 
         Collections.shuffle(microdescConsensus.microdescs);
@@ -55,5 +70,9 @@ public class MicrodescConsensus {
 
     public ArrayList<RouterMicrodesc> getMicrodescs() {
         return microdescs;
+    }
+
+    public HashMap<String, Integer> getParams() {
+        return params;
     }
 }

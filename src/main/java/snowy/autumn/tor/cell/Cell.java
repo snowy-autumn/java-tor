@@ -11,6 +11,7 @@ public abstract class Cell {
 
     public static final int FIXED_CELL_BODY_LENGTH = 509;
 
+    public static final byte PADDING = 0;
     public static final byte VERSIONS = 7;
     public static final byte CERTS = (byte) 129;
     public static final byte AUTH_CHALLENGE = (byte) 130;
@@ -126,6 +127,10 @@ public abstract class Cell {
             }
             case DESTROY -> {
                 return (T) new DestroyCell(circuitId, body[0]);
+            }
+            case PADDING -> {
+                // For now, we'll just ignore padding cells.
+                return null;
             }
             default -> throw new Error("Unknown cell received: " + command);
         }

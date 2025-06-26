@@ -3,6 +3,7 @@ package snowy.autumn.tor.relay;
 import snowy.autumn.tor.cell.Cell;
 import snowy.autumn.tor.cell.cells.*;
 import snowy.autumn.tor.circuit.Circuit;
+import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 
 import javax.net.ssl.*;
 import java.io.IOException;
@@ -30,6 +31,10 @@ public class Guard extends Relay {
     private final ReentrantLock circuitsLock = new ReentrantLock();
     private final HashMap<Integer, Circuit> circuitHashMap = new HashMap<>();
 
+    public Guard(RouterMicrodesc routerMicrodesc) {
+        this(routerMicrodesc.getHost(), routerMicrodesc.getPort(), routerMicrodesc.getFingerprint());
+    }
+
     public Guard(String host, int port, byte[] fingerprint) {
         super(host, port, fingerprint);
     }
@@ -47,7 +52,7 @@ public class Guard extends Relay {
         }
     }
 
-    public byte[] reactExact(int length) {
+    public byte[] readExact(int length) {
         inputLock.lock();
         try {
             return inputStream.readNBytes(length);
@@ -118,29 +123,27 @@ public class Guard extends Relay {
         connected = false;
         try {
             socket.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        } catch (IOException ignored) {}
         return null;
     }
 
     public <T extends Cell> T receiveNextCell() {
         int circuitId;
-        byte[] circuitIdBytes = reactExact(highestSupportedVersion < 4 ? 2 : 4);
+        byte[] circuitIdBytes = readExact(highestSupportedVersion < 4 ? 2 : 4);
         if (circuitIdBytes == null) return terminated();
         if (circuitIdBytes.length == 2)
             circuitId = ByteBuffer.allocate(2).put(circuitIdBytes).rewind().getShort();
         else
             circuitId = ByteBuffer.allocate(4).put(circuitIdBytes).rewind().getInt();
 
-        byte[] commandBytes = reactExact(1);
-        if (commandBytes == null) return terminated();
+        byte[] commandBytes = readExact(1);
+        if (commandBytes == null || commandBytes.length == 0) return terminated();
         byte command = commandBytes[0];
         boolean fixedLengthCell = Cell.isFixedLengthCell(command);
-        byte[] body = reactExact(fixedLengthCell ? Cell.FIXED_CELL_BODY_LENGTH : 2);
+        byte[] body = readExact(fixedLengthCell ? Cell.FIXED_CELL_BODY_LENGTH : 2);
         if (body != null && !fixedLengthCell) {
             body = new byte[ByteBuffer.wrap(body).getShort()];
-            body = reactExact(body.length);
+            body = readExact(body.length);
         }
         if (body == null) return terminated();
 

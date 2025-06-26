@@ -99,6 +99,9 @@ public abstract class RelayCell extends Cell {
         }
         else if (command == SENDME) {
             buffer = ByteBuffer.wrap(data);
+            // The spec only mentions this vaguely once, but I figured it might help prevent a few crashes.
+            if (buffer.remaining() == 0) return (T) new SendMeCommand(circuitId, streamId, 0, null);
+
             byte sendMeVersion = buffer.get();
             // Technically if the version is not recognised then the circuit should be torn down, but not very important right now.
             if (sendMeVersion == 0) return (T) new SendMeCommand(circuitId, streamId, sendMeVersion);
