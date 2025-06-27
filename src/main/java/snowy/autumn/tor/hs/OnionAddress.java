@@ -1,0 +1,107 @@
+package snowy.autumn.tor.hs;
+
+import snowy.autumn.tor.crypto.Cryptography;
+
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.time.Instant;
+
+public class OnionAddress {
+
+    // Technically Base32 only uses capital letters, but since tor address are usually always all lowercase, I decided that it doesn't matter for this implementation.
+    private static final String BASE32_CHARS = "abcdefghijklmnopqrstuvwxyz234567";
+
+    public static byte[] base32decode(String base32) {
+        base32 = base32.replaceAll("\\s+", "").replaceAll("=", "");
+        int outputLength = (base32.length() * 5) / 8;
+        byte[] output = new byte[outputLength];
+
+        int buffer = 0;
+        int bitsLeft = 0;
+        int outputIndex = 0;
+
+        for (char c : base32.toCharArray()) {
+            int value = BASE32_CHARS.indexOf(c);
+            if (value < 0) {
+                throw new IllegalArgumentException("Invalid Base32 character: " + c);
+            }
+
+            buffer <<= 5;
+            buffer |= value;
+            bitsLeft += 5;
+
+            if (bitsLeft >= 8) {
+                bitsLeft -= 8;
+                output[outputIndex++] = (byte) (buffer >> bitsLeft);
+            }
+        }
+
+        return output;
+    }
+
+    public static final byte[] BLIND_STRING = "Derive temporary signing key\0".getBytes();
+    public static final byte[] ED25519_BASEPOINT = "(15112221349535400772501151409588531511454012693041857206046113283949847762202, 46316835694926478169428394003475163141307993866256225615783033603165251855960)".getBytes();
+
+    String address;
+    byte[] publicKey = new byte[32];
+    short checksum;
+    byte version;
+
+    byte[] N_hs_credential;
+
+    MessageDigest sha3_256 = Cryptography.createDigest("SHA3-256");
+
+    public OnionAddress(String address) {
+        if (!address.endsWith(".onion"))
+            // Note: This is a terrible idea, since websites can usually make the browser attempt to redirect TOR users to a hidden service version of themselves.
+            // By throwing an error for every malformed address, a bad actor can essentially send bad addresses in order to crash the client.
+            // But since this is just an insignificant attempt at a client and this implementation is only temporary, I guess we can ignore it for now.
+            throw new Error("Invalid onion address: " + address);
+        else if (address.length() != 62) throw new Error("Potentially unsupported version of hidden service: " + address); // Again, terrible idea.
+        this.address = address.toLowerCase();
+
+        ByteBuffer buffer = ByteBuffer.wrap(base32decode(address.substring(0, address.lastIndexOf(".onion"))));
+        buffer.get(publicKey);
+        checksum = buffer.getShort();
+        version = buffer.get();
+        if (version != 3) throw new Error("Potentially unsupported version of hidden service: " + address); // You get the point, terrible idea.
+        short calculatedChecksum = ByteBuffer.wrap(sha3_256.digest(ByteBuffer.allocate(15 + 32 + 1)
+                .put(".onion checksum".getBytes())
+                .put(publicKey)
+                .put(version).array())).getShort();
+
+        if (checksum != calculatedChecksum) throw new Error("Checksums do not match for hidden service address: " + address + ", calculated checksum: " + calculatedChecksum + ", embedded checksum: " + checksum);
+
+        N_hs_credential = sha3_256.digest(ByteBuffer.allocate(10 + 32).put("credential".getBytes()).put(publicKey).array());
+    }
+
+    public byte[] calculateBlindingFactor() {
+        return calculateBlindingFactor(new byte[0]);
+    }
+
+    private static int getPeriodLength() {
+        // The consensus doesn't usually list hsdir_interval, so we'll just always assume it's the default, at 1440.
+        return 1440;
+    }
+
+    private static long getCurrentPeriod() {
+        long unixTimeInMinutes = Instant.now().getEpochSecond() / 60;
+        unixTimeInMinutes -= 12 * 60;
+        unixTimeInMinutes /= getPeriodLength();
+        return unixTimeInMinutes;
+    }
+
+    // This method is private since even arti doesn't use 'secret', and so it's likely that most people will not need access to it.
+    private byte[] calculateBlindingFactor(byte[] secret) {
+        MessageDigest sha3_256 = Cryptography.createDigest("SHA3-256");
+        sha3_256.update(BLIND_STRING);
+        sha3_256.update(publicKey);
+        sha3_256.update(secret);
+        sha3_256.update(ED25519_BASEPOINT);
+        sha3_256.update("key-blind".getBytes());
+        sha3_256.update(ByteBuffer.allocate(8).putLong(getCurrentPeriod()).array());
+        sha3_256.update(ByteBuffer.allocate(8).putLong(getPeriodLength()).array());
+        return sha3_256.digest();
+    }
+
+}
