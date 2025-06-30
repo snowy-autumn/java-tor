@@ -1,6 +1,7 @@
 package snowy.autumn.tor.hs;
 
 import snowy.autumn.tor.crypto.Cryptography;
+import snowy.autumn.tor.maths.Ed25519;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -75,10 +76,6 @@ public class OnionAddress {
         N_hs_credential = sha3_256.digest(ByteBuffer.allocate(10 + 32).put("credential".getBytes()).put(publicKey).array());
     }
 
-    public byte[] calculateBlindingFactor() {
-        return calculateBlindingFactor(new byte[0]);
-    }
-
     private static int getPeriodLength() {
         // The consensus doesn't usually list hsdir_interval, so we'll just always assume it's the default, at 1440.
         return 1440;
@@ -102,6 +99,24 @@ public class OnionAddress {
         sha3_256.update(ByteBuffer.allocate(8).putLong(getCurrentPeriod()).array());
         sha3_256.update(ByteBuffer.allocate(8).putLong(getPeriodLength()).array());
         return sha3_256.digest();
+    }
+
+    /**
+     Calculates the blinded public key. Assumes that 'secret' is a nonce, as mentioned in the comment for {@link #calculateBlindingFactor(byte[] secret)}
+     **/
+    public byte[] blindedPublicKey() {
+        // Calculate the blinding factor for the current period.
+        byte[] blindingFactor = calculateBlindingFactor(new byte[0]);
+        // Clamps the blinding factor as if it were an Ed25519 private key.
+        blindingFactor = Ed25519.clampPrivateKey(blindingFactor);
+
+        // Decompress the onion service's public key as if it into a point on the Edwards25519 curve.
+        Ed25519.Point publicKeyPoint = Ed25519.decompress(publicKey);
+        // Multiplies the public key point by the blinding factor.
+        publicKeyPoint.scalarMultiplication(blindingFactor);
+
+        // return the point compressed back into an Ed25519 public key.
+        return publicKeyPoint.compress();
     }
 
 }

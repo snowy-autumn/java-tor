@@ -6,6 +6,19 @@ public class Ed25519 {
 
     public static final BigInteger P = BigInteger.TWO.pow(255).subtract(BigInteger.valueOf(19));
     public static final BigInteger D = BigInteger.valueOf(-121665).multiply(BigInteger.valueOf(121666).modInverse(P)).mod(P);
+    public static final BigInteger L = BigInteger.TWO.pow(252).add(new BigInteger("27742317777372353535851937790883648493"));
+
+    private static byte[] reverseByteArray(byte[] array) {
+        byte[] reversed = new byte[array.length];
+        for (int i = 0; i < reversed.length; i++) {
+            reversed[i] = array[array.length - i - 1];
+        }
+        return reversed;
+    }
+
+    public static BigInteger littleEndianBigInteger(byte[] bytes) {
+        return new BigInteger(reverseByteArray(bytes));
+    }
 
     public static class Point {
         BigInteger x;
@@ -16,9 +29,25 @@ public class Ed25519 {
             this.y = y;
         }
 
-        public static Point identity() {
+        private static Point identity() {
             // For this specifically I prefer to use valueOf instead of BigInteger.ZERO or BigInteger.ONE
             return new Point(BigInteger.valueOf(0), BigInteger.valueOf(1));
+        }
+
+        public void scalarMultiplication(byte[] scalar) {
+            Point point = Ed25519.scalarMultiplication(this, littleEndianBigInteger(scalar));
+            this.x = point.x;
+            this.y = point.y;
+        }
+
+        public byte[] compress() {
+            byte[] publicKey = reverseByteArray(y.toByteArray());
+
+            // Probably don't need to clear that bit, but it can't hurt.
+            publicKey[31] &= 0x7F;
+            publicKey[31] |= (byte) ((x.testBit(0) ? 1 : 0) << 7);
+
+            return publicKey;
         }
 
     }
@@ -27,10 +56,7 @@ public class Ed25519 {
 
     private static Ed25519PublicKeyProperties extractYnXSign(byte[] publicKey) {
         byte sign = (byte) ((publicKey[31] >> 7) & 1);
-        byte[] y = new byte[32];
-        for (int i = 0; i < 32; i++) {
-            y[i] = publicKey[32 - i - 1];
-        }
+        byte[] y = reverseByteArray(publicKey);
         y[0] &= 0x7F;
 
         return new Ed25519PublicKeyProperties(new BigInteger(y), sign);
@@ -59,6 +85,8 @@ public class Ed25519 {
         BigInteger dAB = D.multiply(aXbY).multiply(bXaY);
 
         BigInteger x = aXbY.add(bXaY).multiply(BigInteger.ONE.add(dAB).modInverse(P)).mod(P);
+
+        // Saw some places saying this should be subtraction instead of addition, but addition works so..
         BigInteger y = a.y.multiply(b.y).add(a.x.multiply(b.x)).multiply(BigInteger.ONE.subtract(dAB).modInverse(P)).mod(P);
 
         return new Point(x, y);
@@ -74,6 +102,17 @@ public class Ed25519 {
             newPoint = addEdwards25519Points(newPoint, point);
 
         return newPoint;
+    }
+
+    private static byte[] reduce(byte[] scalar) {
+        return reverseByteArray(littleEndianBigInteger(scalar).mod(L).toByteArray());
+    }
+
+    public static byte[] clampPrivateKey(byte[] scalar) {
+        scalar[0] &= -8;
+        scalar[31] &= 63;
+        scalar[31] |= 64;
+        return reduce(scalar);
     }
 
 }
