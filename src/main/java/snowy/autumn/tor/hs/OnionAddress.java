@@ -119,4 +119,13 @@ public class OnionAddress {
         return publicKeyPoint.compress();
     }
 
+    // Calculates the subcredential for the current period.
+    public byte[] N_hs_subcredential() {
+        MessageDigest sha3_256 = Cryptography.createDigest("SHA3-256");
+        sha3_256.update("subcredential".getBytes());
+        sha3_256.update(N_hs_credential);
+        sha3_256.update(blindedPublicKey());
+        return sha3_256.digest();
+    }
+
 }
