@@ -1,10 +1,22 @@
-# java-tor
+# Java Tor
 An implementation of the Tor protocol in java
 
 This project is still under development and will likely never adhere to the security standards of the full tor protocol.
 It is only meant to be used when access to the tor network is required but privacy is not of utmost importance.
 
-Example usage (This is not a great way to do this, it's just the way the client works at the moment):
+## The state of the project so far
+
+- At the moment there is no client, but rather an implementation of the protocol that one could use to create a client.
+- It is possible to fetch a microdesc consensus, create and extend circuits and open streams.
+- It is possible to fetch hidden service descriptors.
+
+Overall, the system is very rigid at the moment and likely isn't able to handle everything that it might encounter.
+
+For example, the implementation cannot fetch microdescriptors with the previous shared random value. (This is less of a problem since this implementation is not meant to store the consensus anyway, but it could become one in the future)
+
+---
+
+Example usage (This is not a great way to do this, it's just the way the implementation works at the moment):
 ```java
 // To connect to a directory.
 // Directory authorities can be found in Directories.java

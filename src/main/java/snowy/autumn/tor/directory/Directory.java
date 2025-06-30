@@ -89,6 +89,8 @@ public class Directory {
             else if (!fetchMicrodescriptors(chunk)) return false;
         }
 
+        microdescConsensus.postUpdate();
+
         return true;
     }
 

@@ -1,9 +1,8 @@
 package snowy.autumn.tor.directory.documents;
 
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
+import snowy.autumn.tor.hs.HiddenService;
+
+import java.util.*;
 
 public class MicrodescConsensus {
 
@@ -12,9 +11,17 @@ public class MicrodescConsensus {
     ArrayList<RouterMicrodesc> potentialGuards = new ArrayList<>();
     ArrayList<RouterMicrodesc> fastNodes = new ArrayList<>();
     ArrayList<RouterMicrodesc> potentialExits = new ArrayList<>();
+    ArrayList<HiddenService.HSDir> hsDirs = new ArrayList<>();
+
+    // SRV - Shared Random Value
+    byte[] previousSRV = new byte[32];
+    byte[] currentSRV = new byte[32];
 
     public MicrodescConsensus() {
-
+        // Default params: these params might be changed according to values from the consensus, but unless they're present these should be at their default values.
+        params.put("hsdir_n_replicas", 2);
+        params.put("hsdir_spread_fetch", 3);
+        params.put("hsdir_spread_store", 4);
     }
 
     public MicrodescConsensus(HashMap<String, Integer> params) {
@@ -31,6 +38,16 @@ public class MicrodescConsensus {
             microdescConsensus.params.put(param.split("=")[0], Integer.valueOf(param.split("=")[1]));
         }
 
+        // Parsing the random shared secrets. (We'll assume they're adjacent in the consensus)
+        int prevSRVStart = consensusData.indexOf("\nshared-rand-previous-value");
+        int currentSRVStart = consensusData.indexOf("\nshared-rand-current-value", prevSRVStart);
+        String[] SRVs = consensusData.substring(prevSRVStart + 1, consensusData.indexOf('\n', currentSRVStart + 1)).split("\n");
+        // According to the 'Shared Random Subsystem' spec, the previous SRV value should be listed before the current one.
+        // SRVs are listed in this format: "shared-rand-value" NUM_REVEALS VALUE NL, so the value will always be the third one.
+        microdescConsensus.previousSRV = Base64.getDecoder().decode(SRVs[0].split(" ")[2]);
+        microdescConsensus.currentSRV = Base64.getDecoder().decode(SRVs[1].split(" ")[2]);
+
+        // Parsing the relays listed in the microdesc-consensus.
         String[] routerMicrodescRefs = consensusData.substring(consensusData.indexOf("\nr ") + 3, consensusData.indexOf("\ndirectory-footer")).split("\nr ");
         for (String ref : routerMicrodescRefs) {
             String[] routerInfo = ref.substring(0, ref.indexOf('\n')).split(" ");
@@ -54,6 +71,7 @@ public class MicrodescConsensus {
                 if (statusFlags.contains("guard")) microdescConsensus.potentialGuards.add(microdesc);
                 if (statusFlags.contains("exit") && !statusFlags.contains("badexit")) microdescConsensus.potentialExits.add(microdesc);
                 if (statusFlags.contains("fast")) microdescConsensus.fastNodes.add(microdesc);
+                if (statusFlags.contains("hsdir")) microdescConsensus.hsDirs.add(new HiddenService.HSDir(microdesc, new byte[0]));
             }
 
             microdescConsensus.microdescs.add(microdesc);
@@ -64,8 +82,35 @@ public class MicrodescConsensus {
         return microdescConsensus;
     }
 
+    public void postUpdate() {
+        hsDirs.sort((hsDirA, hsDirB) -> Arrays.compareUnsigned(
+                hsDirA.setHsRelayIndex(HiddenService.hsRelayIndex(currentSRV, hsDirA.getMicrodesc().getEd25519Id())),
+                hsDirB.setHsRelayIndex(HiddenService.hsRelayIndex(currentSRV, hsDirB.getMicrodesc().getEd25519Id()))
+        ));
+    }
+
     public int sendMeEmitMinVersion() {
         return params.get("sendme_emit_min_version");
+    }
+
+    public int hsDirNReplicas() {
+        return params.get("hsdir_n_replicas");
+    }
+
+    public int hsDirSpreadFetch() {
+        return params.get("hsdir_spread_fetch");
+    }
+
+    public int hsDirSpreadStore() {
+        return params.get("hsdir_spread_store");
+    }
+
+    public byte[] getPreviousSRV() {
+        return previousSRV;
+    }
+
+    public byte[] getCurrentSRV() {
+        return currentSRV;
     }
 
     public ArrayList<RouterMicrodesc> getMicrodescs() {
@@ -75,4 +120,9 @@ public class MicrodescConsensus {
     public HashMap<String, Integer> getParams() {
         return params;
     }
+
+    public ArrayList<HiddenService.HSDir> getHsDirs() {
+        return hsDirs;
+    }
+
 }
