@@ -1,8 +1,8 @@
 package snowy.autumn.tor.cell.cells;
 
-import com.google.crypto.tink.hybrid.internal.X25519.KeyPair;
 import snowy.autumn.tor.cell.Cell;
 import snowy.autumn.tor.crypto.Cryptography;
+import snowy.autumn.tor.crypto.KeyPair;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Handshakes;
 

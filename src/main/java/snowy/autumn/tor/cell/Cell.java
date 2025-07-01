@@ -2,6 +2,7 @@ package snowy.autumn.tor.cell;
 
 import snowy.autumn.tor.cell.cells.*;
 import snowy.autumn.tor.cell.cells.relay.RelayCell;
+import snowy.autumn.tor.crypto.Certificate;
 
 import java.nio.ByteBuffer;
 
@@ -71,13 +72,13 @@ public abstract class Cell {
                 return (T) new VersionCell(versions);
             }
             case CERTS -> {
-                CertsCell.Cert[] certificates = new CertsCell.Cert[buffer.get()];
+                Certificate[] certificates = new Certificate[buffer.get()];
                 for (int i = 0; i < certificates.length; i++) {
                     byte certType = buffer.get();
                     short certLength = buffer.getShort();
                     byte[] encodedCert = new byte[certLength];
                     buffer.get(encodedCert);
-                    certificates[i] = new CertsCell.Cert(certType, certLength, encodedCert);
+                    certificates[i] = new Certificate(certType, certLength, encodedCert);
                 }
                 return (T) new CertsCell(certificates);
             }

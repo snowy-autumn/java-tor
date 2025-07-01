@@ -1,5 +1,6 @@
 package snowy.autumn.tor.hs;
 
+import org.bouncycastle.util.encoders.Base32;
 import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.maths.Ed25519;
 
@@ -7,37 +8,6 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
 public class OnionAddress {
-
-    // Technically Base32 only uses uppercase letters, but since onion addresses are usually always all lowercase, I decided that it doesn't matter for this implementation.
-    private static final String BASE32_CHARS = "abcdefghijklmnopqrstuvwxyz234567";
-
-    public static byte[] base32decode(String base32) {
-        base32 = base32.replaceAll("\\s+", "").replaceAll("=", "");
-        int outputLength = (base32.length() * 5) / 8;
-        byte[] output = new byte[outputLength];
-
-        int buffer = 0;
-        int bitsLeft = 0;
-        int outputIndex = 0;
-
-        for (char c : base32.toCharArray()) {
-            int value = BASE32_CHARS.indexOf(c);
-            if (value < 0) {
-                throw new IllegalArgumentException("Invalid Base32 character: " + c);
-            }
-
-            buffer <<= 5;
-            buffer |= value;
-            bitsLeft += 5;
-
-            if (bitsLeft >= 8) {
-                bitsLeft -= 8;
-                output[outputIndex++] = (byte) (buffer >> bitsLeft);
-            }
-        }
-
-        return output;
-    }
 
     public static final byte[] BLIND_STRING = "Derive temporary signing key\0".getBytes();
     public static final byte[] ED25519_BASEPOINT = "(15112221349535400772501151409588531511454012693041857206046113283949847762202, 46316835694926478169428394003475163141307993866256225615783033603165251855960)".getBytes();
@@ -60,7 +30,7 @@ public class OnionAddress {
         else if (address.length() != 62) throw new Error("Potentially unsupported hidden service version: " + address); // Again, terrible idea.
         this.address = address.toLowerCase();
 
-        ByteBuffer buffer = ByteBuffer.wrap(base32decode(address.substring(0, address.lastIndexOf(".onion"))));
+        ByteBuffer buffer = ByteBuffer.wrap(Base32.decode(address.substring(0, address.lastIndexOf(".onion")).toUpperCase()));
         buffer.get(publicKey);
         checksum = buffer.getShort();
         version = buffer.get();

@@ -1,6 +1,6 @@
 package snowy.autumn.tor.directory;
 
-import com.google.crypto.tink.subtle.Hex;
+import org.bouncycastle.util.encoders.Hex;
 
 public class Directories {
 
