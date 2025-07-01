@@ -8,6 +8,7 @@ import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.crypto.Keys;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
+import snowy.autumn.tor.hs.IntroductionPoint;
 import snowy.autumn.tor.relay.Guard;
 import snowy.autumn.tor.relay.Handshakes;
 import snowy.autumn.tor.relay.Relay;
@@ -32,6 +33,8 @@ public class Circuit {
     private static final byte NOT_SET = -2;
     private static final byte CONNECTED = -1;
     byte connected = NOT_SET;
+
+    private final ReentrantLock truncateLock = new ReentrantLock();
 
     // quick access params
     int sendMeVersion = 0;
@@ -60,6 +63,7 @@ public class Circuit {
     }
 
     public void addCell(Cell cell) {
+        truncateLock.lock();
         pendingCellsLock.lock();
         byte[] decryptedDigest = null;
         if (cell instanceof RelayCell.EncryptedRelayCell encryptedRelayCell) {
@@ -104,6 +108,7 @@ public class Circuit {
 
         pendingCells.add(cell);
         pendingCellsLock.unlock();
+        truncateLock.unlock();
     }
 
     public void handleSendMe(short streamId, byte[] digest) {
@@ -158,22 +163,28 @@ public class Circuit {
         return cell;
     }
 
-    public boolean sendCell(Cell cell) {
-        if (cell instanceof RelayCell relayCell) {
-            byte[] body = relayCell.serialiseBody();
-            // update the digest field
-            byte[] digest = Cryptography.updateDigest(relayKeys.getLast().digestForward(), body);
-            // Todo: Replace this part with an actual calculation of when the relay would send a SEND ME command and store only the right digest.
-            lastDigestsLock.lock();
-            lastDigests.add(digest);
-            lastDigestsLock.unlock();
-            System.arraycopy(digest, 0, body, 5, 4);
-            // encrypt the relay cell body
-            for (int i = relayKeys.size() - 1; i >= 0; i--) {
-                body = relayKeys.get(i).encryptionKey().update(body);
-            }
-            return guard.sendCell(new RelayCell.EncryptedRelayCell(circuitId, relayCell.isEarly(), body));
+    public boolean sendRelayCell(RelayCell relayCell, int level) {
+        byte[] body = relayCell.serialiseBody();
+        // update the digest field
+        byte[] digest = Cryptography.updateDigest(relayKeys.get(level).digestForward(), body);
+        // Todo: Replace this part with an actual calculation of when the relay would send a SEND ME command and store only the right digest.
+        lastDigestsLock.lock();
+        lastDigests.add(digest);
+        lastDigestsLock.unlock();
+        System.arraycopy(digest, 0, body, 5, 4);
+        // encrypt the relay cell body
+        for (int i = level; i >= 0; i--) {
+            body = relayKeys.get(i).encryptionKey().update(body);
         }
+        return guard.sendCell(new RelayCell.EncryptedRelayCell(circuitId, relayCell.isEarly(), body));
+    }
+
+    public boolean sendRelayCell(RelayCell relayCell) {
+        return sendRelayCell(relayCell, relayKeys.size() - 1);
+    }
+
+    public boolean sendCell(Cell cell) {
+        if (cell instanceof RelayCell relayCell) return sendRelayCell(relayCell);
         else return guard.sendCell(cell);
     }
 
@@ -198,12 +209,21 @@ public class Circuit {
         return keys != null || Boolean.TRUE.equals(guard.terminate());
     }
 
+    public boolean extend2(IntroductionPoint introductionPoint) {
+        Extend2Command extend2Command = new Extend2Command(circuitId, introductionPoint);
+        return extend2(extend2Command, introductionPoint.ntorOnionKey(), introductionPoint.fingerprint());
+    }
+
     public boolean extend2(RouterMicrodesc routerMicrodesc) {
         Extend2Command extend2Command = new Extend2Command(circuitId, routerMicrodesc);
+        return extend2(extend2Command, routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint());
+    }
+
+    private boolean extend2(Extend2Command extend2Command, byte[] ntorOnionKey, byte[] fingerprint) {
         sendCell(extend2Command);
         Extended2Command extended2Command = waitForRelayCell((short) 0, RelayCell.EXTENDED2);
         if (extended2Command == null) return false;
-        Keys keys = Handshakes.finishNtorHandshake(routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), extend2Command.getKeyPair(), extended2Command.getPublicKey(), extended2Command.getAuth());
+        Keys keys = Handshakes.finishNtorHandshake(ntorOnionKey, fingerprint, extend2Command.getKeyPair(), extended2Command.getPublicKey(), extended2Command.getAuth());
         relayKeys.add(keys);
         return keys != null || Boolean.TRUE.equals(guard.terminate());
     }
@@ -247,6 +267,16 @@ public class Circuit {
 
     public void destroyed(byte reason) {
         connected = reason;
+    }
+
+    public boolean truncate(int level) {
+        // Levels here start from 0, since you can't truncate zero nodes and so there's no point in starting from 1.
+        truncateLock.lock();
+        sendRelayCell(new TruncateCommand(circuitId), relayKeys.size() - 2 - level);
+        for (int i = 0; i < level + 1; i++) relayKeys.removeLast();
+        truncateLock.unlock();
+        TruncatedCommand truncatedCommand = waitForRelayCell((short) 0, RelayCell.TRUNCATED);
+        return truncatedCommand.getReason() == DestroyCell.DestroyReason.REQUESTED.getReason();
     }
 
     public byte getConnected() {

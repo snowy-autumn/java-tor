@@ -57,6 +57,10 @@ public class HiddenServiceDescriptor {
         valid = true;
     }
 
+    public ArrayList<IntroductionPoint> getIntroductionPoints() {
+        return introductionPoints;
+    }
+
     public boolean isValid() {
         return valid;
     }

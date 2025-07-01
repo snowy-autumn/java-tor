@@ -20,7 +20,7 @@ Example usage (This is not a great way to do this, it's just the way the impleme
 ```java
 // To connect to a directory.
 // Directory authorities can be found in Directories.java
-Directory directory = new Directory(directoryHost, directoryPort, directoryRSAId);
+Directory directory = new Directory(directoryHost, directoryPort);
 System.out.println("Directory ready: " + directory.prepareCircuit());
 // Fetch the latest microdesc consensus.
 MicrodescConsensus microdescConsensus = directory.fetchMicrodescConsensus();

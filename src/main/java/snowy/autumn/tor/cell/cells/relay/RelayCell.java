@@ -35,6 +35,8 @@ public abstract class RelayCell extends Cell {
     public static final byte SENDME = 5;
     public static final byte EXTEND2 = 14;
     public static final byte EXTENDED2 = 15;
+    public static final byte TRUNCATE = 8;
+    public static final byte TRUNCATED = 9;
 
     protected byte relayCommand;
     short streamId;
@@ -87,42 +89,48 @@ public abstract class RelayCell extends Cell {
         buffer.get(data);
         // the rest is padding so we can just ignore it
 
-        if (command == CONNECTED) {
-            // Since we do not intend to cache the address given to us by the exit node, we can just skip parsing the relay command and return an empty cell.
-            return (T) new ConnectedCommand(circuitId, streamId);
-        }
-        else if (command == DATA) {
-            return (T) new DataCommand(circuitId, streamId, data);
-        }
-        else if (command == END) {
-            return (T) new EndCommand(circuitId, streamId, data[0]);
-        }
-        else if (command == SENDME) {
-            buffer = ByteBuffer.wrap(data);
-            // The spec only mentions this vaguely once, but I figured it might help prevent a few crashes.
-            if (buffer.remaining() == 0) return (T) new SendMeCommand(circuitId, streamId, 0, null);
+        switch (command) {
+            case CONNECTED -> {
+                // Since we do not intend to cache the address given to us by the exit node, we can just skip parsing the relay command and return an empty cell.
+                return (T) new ConnectedCommand(circuitId, streamId);
+                // Since we do not intend to cache the address given to us by the exit node, we can just skip parsing the relay command and return an empty cell.
+            }
+            case DATA -> {
+                return (T) new DataCommand(circuitId, streamId, data);
+            }
+            case END -> {
+                return (T) new EndCommand(circuitId, streamId, data[0]);
+            }
+            case SENDME -> {
+                buffer = ByteBuffer.wrap(data);
+                // The spec only mentions this vaguely once, but I figured it might help prevent a few crashes.
+                if (buffer.remaining() == 0) return (T) new SendMeCommand(circuitId, streamId, 0, null);
 
-            byte sendMeVersion = buffer.get();
-            // Technically if the version is not recognised then the circuit should be torn down, but not very important right now.
-            if (sendMeVersion == 0) return (T) new SendMeCommand(circuitId, streamId, sendMeVersion);
-            byte[] digest = new byte[buffer.getShort()];
-            buffer.get(digest);
-            return (T) new SendMeCommand(circuitId, streamId, sendMeVersion, digest);
-        }
-        else if (command == EXTENDED2) {
-            buffer = ByteBuffer.wrap(data);
-            // Todo: Add support for ntor-v3
-            // Since we're only using the ntor handshake at the moment (NOT GOOD PRACTICE FOR MODERN CLIENTS),
-            // we don't need to worry about parsing other handshake types.
-            buffer.getShort(); // This should always be 64, so we can discard it.
-            byte[] publicKey = new byte[32];
-            buffer.get(publicKey);
-            byte[] auth = new byte[32];
-            buffer.get(auth);
-            return (T) new Extended2Command(circuitId, publicKey, auth);
-        }
+                byte sendMeVersion = buffer.get();
+                // Technically if the version is not recognised then the circuit should be torn down, but not very important right now.
+                if (sendMeVersion == 0) return (T) new SendMeCommand(circuitId, streamId, sendMeVersion);
+                byte[] digest = new byte[buffer.getShort()];
+                buffer.get(digest);
+                return (T) new SendMeCommand(circuitId, streamId, sendMeVersion, digest);
+            }
+            case EXTENDED2 -> {
+                buffer = ByteBuffer.wrap(data);
+                // Todo: Add support for ntor-v3
+                // Since we're only using the ntor handshake at the moment (NOT GOOD PRACTICE FOR MODERN CLIENTS),
+                // we don't need to worry about parsing other handshake types.
+                buffer.getShort(); // This should always be 64, so we can discard it.
 
-        throw new Error("Unknown relay command received: " + command);
+                byte[] publicKey = new byte[32];
+                buffer.get(publicKey);
+                byte[] auth = new byte[32];
+                buffer.get(auth);
+                return (T) new Extended2Command(circuitId, publicKey, auth);
+            }
+            case TRUNCATED -> {
+                return (T) new TruncatedCommand(circuitId, data[0]);
+            }
+            default -> throw new Error("Unknown relay command received: " + command);
+        }
     }
 
     public byte getRelayCommand() {
