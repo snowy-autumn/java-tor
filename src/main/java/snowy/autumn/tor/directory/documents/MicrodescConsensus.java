@@ -83,9 +83,13 @@ public class MicrodescConsensus {
     }
 
     public void postUpdate() {
+        // This is done since clients prefer to match their time periods with their SRVs.
+        int hour = HiddenService.getCurrentTime().getHour();
+        byte[] srv = hour >= 11 && hour < 23 ? currentSRV : previousSRV;
+
         hsDirs.sort((hsDirA, hsDirB) -> Arrays.compareUnsigned(
-                hsDirA.setHsRelayIndex(HiddenService.hsRelayIndex(currentSRV, hsDirA.getMicrodesc().getEd25519Id())),
-                hsDirB.setHsRelayIndex(HiddenService.hsRelayIndex(currentSRV, hsDirB.getMicrodesc().getEd25519Id()))
+                hsDirA.calculateHsRelayIndexConditional(srv),
+                hsDirB.calculateHsRelayIndexConditional(srv)
         ));
     }
 

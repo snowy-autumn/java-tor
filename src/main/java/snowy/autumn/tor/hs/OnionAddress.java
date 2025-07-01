@@ -83,7 +83,7 @@ public class OnionAddress {
         sha3_256.update(secret);
         sha3_256.update(ED25519_BASEPOINT);
         sha3_256.update("key-blind".getBytes());
-        sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentPeriod()).array());
+        sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentTimePeriod()).array());
         sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getPeriodLength()).array());
         return sha3_256.digest();
     }

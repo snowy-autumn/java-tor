@@ -111,6 +111,7 @@ public abstract class RelayCell extends Cell {
         }
         else if (command == EXTENDED2) {
             buffer = ByteBuffer.wrap(data);
+            // Todo: Add support for ntor-v3
             // Since we're only using the ntor handshake at the moment (NOT GOOD PRACTICE FOR MODERN CLIENTS),
             // we don't need to worry about parsing other handshake types.
             buffer.getShort(); // This should always be 64, so we can discard it.

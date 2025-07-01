@@ -7,6 +7,8 @@ import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -26,8 +28,9 @@ public class HiddenService {
             this.hsRelayIndex = hsRelayIndex;
         }
 
-        public byte[] setHsRelayIndex(byte[] hsRelayIndex) {
-            return this.hsRelayIndex = hsRelayIndex;
+        public byte[] calculateHsRelayIndexConditional(byte[] srv) {
+            if (this.hsRelayIndex.length == 0) return this.hsRelayIndex = HiddenService.hsRelayIndex(srv, microdesc.getEd25519Id());
+            return this.hsRelayIndex;
         }
 
         public RouterMicrodesc getMicrodesc() {
@@ -45,8 +48,12 @@ public class HiddenService {
         return 1440;
     }
 
-    public static long getCurrentPeriod() {
-        long unixTimeInMinutes = Instant.now().getEpochSecond() / 60;
+    public static ZonedDateTime getCurrentTime() {
+        return Instant.now().atZone(ZoneOffset.UTC);
+    }
+
+    public static long getCurrentTimePeriod() {
+        long unixTimeInMinutes = getCurrentTime().toEpochSecond() / 60;
         unixTimeInMinutes -= 12 * 60;
         unixTimeInMinutes /= getPeriodLength();
         return unixTimeInMinutes;
@@ -57,7 +64,7 @@ public class HiddenService {
         sha3_256.update("node-idx".getBytes());
         sha3_256.update(ed25519Id);
         sha3_256.update(srv);
-        sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentPeriod()).array());
+        sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentTimePeriod()).array());
         sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getPeriodLength()).array());
         return sha3_256.digest();
     }
@@ -72,16 +79,18 @@ public class HiddenService {
             sha3_256.update(ByteBuffer.allocate(8).putLong(replicanum).array());
             // Todo: Change this to use the valid-after time from the consensus.
             sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getPeriodLength()).array());
-            sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentPeriod()).array());
+            sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentTimePeriod()).array());
             byte[] replica = sha3_256.digest();
 
-            int fetch = microdescConsensus.hsDirSpreadFetch();
+            int fetchIndex = 0;
 
             for (HSDir hsDir : hsDirs) {
-                if (Arrays.compareUnsigned(replica, hsDir.hsRelayIndex) < 0) {
-                    potentialHsDirs.add(hsDir.getMicrodesc());
-                    if (--fetch == 0) break;
-                }
+                if (Arrays.compareUnsigned(replica, hsDir.hsRelayIndex) < 0) break;
+                fetchIndex++;
+            }
+
+            for (int i = 0; i < microdescConsensus.hsDirSpreadFetch(); i++) {
+                potentialHsDirs.add(hsDirs.get((fetchIndex + i) % hsDirs.size()).getMicrodesc());
             }
         }
 

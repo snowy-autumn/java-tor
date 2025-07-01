@@ -76,7 +76,7 @@ public class Directory {
         List<List<RouterMicrodesc>> chunks = IntStream.range(0, (microdescs.size() + maxPerMirror - 1) / maxPerMirror)
                 .mapToObj(i -> microdescs.subList(i * maxPerMirror, Math.min(microdescs.size(), (i + 1) * maxPerMirror))
                         .stream().sorted((a, b) ->
-                                Arrays.compare(Base64.getDecoder().decode(b.getMicrodescHash()), Base64.getDecoder().decode(a.getMicrodescHash())))
+                                Arrays.compareUnsigned(Base64.getDecoder().decode(b.getMicrodescHash()), Base64.getDecoder().decode(a.getMicrodescHash())))
                         .toList()).toList();
 
         // Todo: Change this to fetch from a few mirrors at once, as it should be.

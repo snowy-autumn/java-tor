@@ -12,7 +12,7 @@ It is only meant to be used when access to the tor network is required but priva
 
 Overall, the system is very rigid at the moment and likely isn't able to handle everything that it might encounter.
 
-For example, the implementation cannot fetch microdescriptors with the previous shared random value. (This is less of a problem since this implementation is not meant to store the consensus anyway, but it could become one in the future)
+For example, at the moment, the implementation uses whatever unix time java gives it, instead of using the valid-after time from the consensus. (This is probably not an issue that is likely to occur very often, but it could happen if the system clock is skewed just enough and the client is used just at the right time.) 
 
 ---
 
