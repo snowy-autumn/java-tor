@@ -17,9 +17,22 @@ public class Directory {
     Random random = new Random();
     Guard guard;
     MicrodescConsensus microdescConsensus;
+    RouterMicrodesc directoryMicrodesc;
 
-    public Directory(String host, int port, byte[] fingerprint) {
-        this.guard = new Guard(host, port, fingerprint);
+    public Directory(MicrodescConsensus microdescConsensus, RouterMicrodesc directoryMicrodesc, Circuit circuit) {
+        this.microdescConsensus = microdescConsensus;
+        this.directoryMicrodesc = directoryMicrodesc;
+        this.circuit = circuit;
+    }
+
+    public Directory(String host, int port) {
+        this.guard = new Guard(host, port, new byte[20]);
+    }
+
+    public boolean extendToDirectory() {
+        if (directoryMicrodesc == null) return false;
+        if (circuit == null || !circuit.isConnected()) return false;
+        return circuit.extend2(directoryMicrodesc);
     }
 
     public boolean prepareCircuit() {
@@ -30,7 +43,7 @@ public class Directory {
         return circuit.createFast();
     }
 
-    private String httpRequest(String request) {
+    protected String httpRequest(String request) {
         short streamId = (short) random.nextInt();
         if (!circuit.openDirStream(streamId)) return null;
         circuit.sendData(streamId, request.getBytes());
