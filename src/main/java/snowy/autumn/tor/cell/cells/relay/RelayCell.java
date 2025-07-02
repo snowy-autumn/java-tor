@@ -39,6 +39,8 @@ public abstract class RelayCell extends Cell {
     public static final byte TRUNCATED = 9;
     public static final byte INTRODUCE1 = 34;
     public static final byte INTRODUCE_ACK = 40;
+    public static final byte ESTABLISH_RENDEZVOUS = 33;
+    public static final byte RENDEZVOUS_ESTABLISHED = 39;
 
     protected byte relayCommand;
     short streamId;
@@ -134,6 +136,9 @@ public abstract class RelayCell extends Cell {
             case INTRODUCE_ACK -> {
                 // Todo: Figure out if there are any existing extensions for INTRODUCE_ACK. Since unrecognised extensions are ignored anyway, it shouldn't pose a problem.
                 return (T) new IntroduceAckCommand(circuitId, IntroduceAckCommand.IntroduceAckStatus.get(ByteBuffer.wrap(data).getShort()));
+            }
+            case RENDEZVOUS_ESTABLISHED -> {
+                return (T) new RendezvousEstablishedCommand(circuitId);
             }
             default -> throw new Error("Unknown relay command received: " + command);
         }

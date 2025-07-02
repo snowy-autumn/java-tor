@@ -9,9 +9,6 @@ import snowy.autumn.tor.hs.IntroductionPoint;
 
 import javax.crypto.Cipher;
 import java.nio.ByteBuffer;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.util.Arrays;
 
 public class Introduce1Command extends RelayCell {
 
@@ -28,21 +25,17 @@ public class Introduce1Command extends RelayCell {
 
     RouterMicrodesc rendezvousPointMicrodesc;
     IntroductionPoint introductionPoint;
-    byte[] rendezvousCookie = new byte[20];
+    byte[] rendezvousCookie;
     KeyPair temporaryKeyPair;
     HiddenService hiddenService;
 
-    public Introduce1Command(int circuitId, IntroductionPoint introductionPoint, RouterMicrodesc rendezvousPointMicrodesc, HiddenService hiddenService) {
+    public Introduce1Command(int circuitId, IntroductionPoint introductionPoint, RouterMicrodesc rendezvousPointMicrodesc, byte[] rendezvousCookie, HiddenService hiddenService) {
         super(circuitId, false, INTRODUCE1, (short) 0);
         this.introductionPoint = introductionPoint;
         this.rendezvousPointMicrodesc = rendezvousPointMicrodesc;
+        this.rendezvousCookie = rendezvousCookie;
         this.hiddenService = hiddenService;
         this.temporaryKeyPair = Cryptography.generateX25519KeyPair();
-        try {
-            SecureRandom.getInstanceStrong().nextBytes(rendezvousCookie);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private byte[] generateEncryptedPlaintext(int maxLength) {
@@ -54,7 +47,7 @@ public class Introduce1Command extends RelayCell {
         // Rendezvous onion key type (only available one is 1 - ntor onion key)
         buffer.put((byte) 1);
         // Rendezvous onion key length - An ntor onion key is always 32 bytes long.
-        buffer.put((byte) 32);
+        buffer.putShort((byte) 32);
         // Rendezvous onion key
         buffer.put(rendezvousPointMicrodesc.getNtorOnionKey());
         // Rendezvous link specifiers
@@ -66,21 +59,19 @@ public class Introduce1Command extends RelayCell {
         return buffer.array();
     }
 
-    private byte[] generateEncrypted(int maxLength) {
-        HsIntroKeys hsIntroKeys = Cryptography.HS_NTOR_KDF(temporaryKeyPair.privateKey(), temporaryKeyPair.publicKey(), introductionPoint, hiddenService);
-        byte[] encryptedPlaintext = generateEncryptedPlaintext(maxLength - 32 - Cryptography.MAC_KEY_LENGTH);
-        byte[] encrypted = hsIntroKeys.encryptionKey().update(encryptedPlaintext);
+    private byte[] generateEncrypted(Cipher encryptionKey, int maxLength) {
+        byte[] encryptedPlaintext = generateEncryptedPlaintext(maxLength);
+        byte[] encrypted = encryptionKey.update(encryptedPlaintext);
         ByteBuffer buffer = ByteBuffer.allocate(maxLength);
-        buffer.put(temporaryKeyPair.publicKey());
         buffer.put(encrypted);
-        buffer.put(Cryptography.hsMac(hsIntroKeys.macKey(), encrypted));
         return buffer.array();
     }
 
     @Override
     protected byte[] serialiseRelayBody() {
+        int MAX_LENGTH = 490;
         // Todo: Consider whether to not allow padding up to 490 bytes but rather up to 246, since we don't want the other end to know that we're not using an official tor implementation (i.e. ctor).
-        ByteBuffer buffer = ByteBuffer.allocate(490);
+        ByteBuffer buffer = ByteBuffer.allocate(MAX_LENGTH - Cryptography.MAC_KEY_LENGTH);
         // Legacy key id. Note that this field should be all zeroes, since otherwise the introduction point will mistake this for the legacy version of introduce1.
         buffer.put(new byte[20]);
         // Auth key type (Only supported type at the moment is 2 - Ed25519 public key)
@@ -91,9 +82,13 @@ public class Introduce1Command extends RelayCell {
         buffer.put(introductionPoint.authKey());
         // Extensions (none)
         buffer.put((byte) 0);
+        // Temporary public key
+        buffer.put(temporaryKeyPair.publicKey());
         // Encrypted
-        buffer.put(generateEncrypted(buffer.remaining()));
-
-        return buffer.array();
+        HsIntroKeys hsIntroKeys = Cryptography.HS_NTOR_KDF(temporaryKeyPair.privateKey(), temporaryKeyPair.publicKey(), introductionPoint, hiddenService);
+        buffer.put(generateEncrypted(hsIntroKeys.encryptionKey(), buffer.remaining()));
+        byte[] allFields = buffer.array();
+        // Mac
+        return ByteBuffer.allocate(MAX_LENGTH).put(allFields).put(Cryptography.hsMac(hsIntroKeys.macKey(), allFields)).array();
     }
 }

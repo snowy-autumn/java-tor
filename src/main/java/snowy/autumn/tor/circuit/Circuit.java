@@ -229,8 +229,15 @@ public class Circuit {
         return keys != null || Boolean.TRUE.equals(guard.terminate());
     }
 
-    public IntroduceAckCommand.IntroduceAckStatus introduce1(IntroductionPoint introductionPoint, RouterMicrodesc rendezvousPoint, HiddenService hiddenService) {
-        sendCell(new Introduce1Command(circuitId, introductionPoint, rendezvousPoint, hiddenService));
+    public byte[] establishRendezvous() {
+        EstablishRendezvousCommand establishRendezvousCommand = new EstablishRendezvousCommand(circuitId);
+        if (!sendCell(establishRendezvousCommand)) return null;
+        RendezvousEstablishedCommand rendezvousEstablished = waitForRelayCell((short) 0, RelayCell.RENDEZVOUS_ESTABLISHED);
+        return rendezvousEstablished != null ? establishRendezvousCommand.getRendezvousCookie() : null;
+    }
+
+    public IntroduceAckCommand.IntroduceAckStatus introduce1(IntroductionPoint introductionPoint, RouterMicrodesc rendezvousPoint, byte[] rendezvousCookie, HiddenService hiddenService) {
+        if (!sendCell(new Introduce1Command(circuitId, introductionPoint, rendezvousPoint, rendezvousCookie, hiddenService))) return null;
         IntroduceAckCommand introduceAck = waitForRelayCell((short) 0, RelayCell.INTRODUCE_ACK);
         return introduceAck.getStatus();
     }
