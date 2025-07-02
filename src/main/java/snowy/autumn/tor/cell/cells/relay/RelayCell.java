@@ -37,6 +37,8 @@ public abstract class RelayCell extends Cell {
     public static final byte EXTENDED2 = 15;
     public static final byte TRUNCATE = 8;
     public static final byte TRUNCATED = 9;
+    public static final byte INTRODUCE1 = 34;
+    public static final byte INTRODUCE_ACK = 40;
 
     protected byte relayCommand;
     short streamId;
@@ -79,10 +81,10 @@ public abstract class RelayCell extends Cell {
     public static <T extends RelayCell> T interpretCommand(int circuitId, byte[] body) {
         ByteBuffer buffer = ByteBuffer.wrap(body);
         byte command = buffer.get();
-        // recognised (should be all zeros and since we don't need it anyway we can just skip past it)
+        // recognised (should be all zeroes and since we don't need it anyway we can just skip past it)
         buffer.getShort();
         short streamId = buffer.getShort();
-        // digest (should be all zeros and since we don't need it anyway we can just skip past it)
+        // digest (should be all zeroes and since we don't need it anyway we can just skip past it)
         buffer.getInt();
         // data length and data
         byte[] data = new byte[buffer.getShort()];
@@ -128,6 +130,10 @@ public abstract class RelayCell extends Cell {
             }
             case TRUNCATED -> {
                 return (T) new TruncatedCommand(circuitId, data[0]);
+            }
+            case INTRODUCE_ACK -> {
+                // Todo: Figure out if there are any existing extensions for INTRODUCE_ACK. Since unrecognised extensions are ignored anyway, it shouldn't pose a problem.
+                return (T) new IntroduceAckCommand(circuitId, IntroduceAckCommand.IntroduceAckStatus.get(ByteBuffer.wrap(data).getShort()));
             }
             default -> throw new Error("Unknown relay command received: " + command);
         }

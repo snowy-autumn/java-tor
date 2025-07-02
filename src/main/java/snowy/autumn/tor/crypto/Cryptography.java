@@ -6,7 +6,9 @@ import org.bouncycastle.crypto.generators.X25519KeyPairGenerator;
 import org.bouncycastle.crypto.params.X25519KeyGenerationParameters;
 import org.bouncycastle.crypto.params.X25519PrivateKeyParameters;
 import org.bouncycastle.crypto.params.X25519PublicKeyParameters;
+import snowy.autumn.tor.cell.cells.relay.commands.Introduce1Command;
 import snowy.autumn.tor.hs.HiddenService;
+import snowy.autumn.tor.hs.IntroductionPoint;
 
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
@@ -31,6 +33,13 @@ public class Cryptography {
     public static final String NTOR_t_key    = NTOR_PROTOID + ":key_extract";
     public static final String NTOR_t_verify = NTOR_PROTOID + ":verify";
     public static final String NTOR_m_expand = NTOR_PROTOID + ":key_expand";
+
+    public static final String HS_NTOR_PROTOID = "tor-hs-ntor-curve25519-sha3-256-1";
+    // Yes, I know that all of these already have `hs` in their name.
+    public static final String HS_NTOR_t_hsenc    = HS_NTOR_PROTOID + ":hs_key_extract";
+    public static final String HS_NTOR_t_hsverify = HS_NTOR_PROTOID + ":hs_verify";
+    public static final String HS_NTOR_t_hsmac    = HS_NTOR_PROTOID + ":hs_mac";
+    public static final String HS_NTOR_m_hsexpand = HS_NTOR_PROTOID + ":hs_key_expand";
 
     public static MessageDigest createDigest(String algorithm) {
         try {
@@ -93,6 +102,25 @@ public class Cryptography {
         }
     }
 
+    private static byte[] hsMac(byte[] macKey, byte[] salt, byte[] message) {
+        // SHA3_256(INT_8(mac_key_len) | MAC_KEY | INT_8(salt_len) | SALT | ENCRYPTED)
+        MessageDigest macDigest = createDigest("SHA3-256");
+        macDigest.update(ByteBuffer.allocate(8).putLong(macKey.length).array());
+        macDigest.update(macKey);
+        if (salt != null) {
+            macDigest.update(ByteBuffer.allocate(8).putLong(salt.length).array());
+            macDigest.update(salt);
+        }
+        macDigest.update(message);
+        return macDigest.digest();
+    }
+
+    public static byte[] hsMac(byte[] macKey, byte[] message) {
+        // Note: The other hsMac function and this one might not be related, and I just don't remember the details exactly.
+        // It doesn't matter though, as they operate very similarly, so I've simply modified the other one to make this work.
+        return hsMac(macKey, null, message);
+    }
+
     public static byte[] computeSharedSecret(byte[] privateKey, byte[] publicKey) {
         byte[] sharedSecret = new byte[32];
         new X25519PrivateKeyParameters(privateKey).generateSecret(new X25519PublicKeyParameters(publicKey), sharedSecret, 0);
@@ -151,6 +179,34 @@ public class Cryptography {
         return new Keys(keys[0], keys[1], keys[2], keys[3], keys[4]);
     }
 
+    public static Introduce1Command.HsIntroKeys HS_NTOR_KDF(byte[] x, byte[] X, IntroductionPoint introductionPoint, HiddenService hiddenService) {
+        //             intro_secret_hs_input = EXP(B,x) | AUTH_KEY | X | B | PROTOID
+        //             info = m_hsexpand | N_hs_subcred
+        //             hs_keys = SHAKE256_KDF(intro_secret_hs_input | t_hsenc | info, S_KEY_LEN+MAC_LEN)
+        //             ENC_KEY = hs_keys[0:S_KEY_LEN]
+        //             MAC_KEY = hs_keys[S_KEY_LEN:S_KEY_LEN+MAC_KEY_LEN]
+        SHAKEDigest shakeDigest = new SHAKEDigest(256);
+        // intro_secret_hs_input = EXP(B,x) | AUTH_KEY | X | B | PROTOID
+        shakeDigest.update(computeSharedSecret(x, introductionPoint.encryptionKey()), 0, 32);
+        shakeDigest.update(introductionPoint.authKey(), 0, introductionPoint.authKey().length);
+        shakeDigest.update(X, 0, X.length);
+        shakeDigest.update(introductionPoint.encryptionKey(), 0, introductionPoint.encryptionKey().length);
+        shakeDigest.update(HS_NTOR_PROTOID.getBytes(), 0, HS_NTOR_PROTOID.length());
+        // t_hsenc
+        shakeDigest.update(HS_NTOR_t_hsenc.getBytes(), 0, HS_NTOR_t_hsenc.length());
+        // info
+        shakeDigest.update(HS_NTOR_m_hsexpand.getBytes(), 0, HS_NTOR_m_hsexpand.length());
+        shakeDigest.update(hiddenService.getOnionAddress().N_hs_subcredential(), 0, 32);
+        // output keys (ENC_KEY, MAC_KEY)
+        byte[] encryptionKey = new byte[CIPHER_KEY_LENGTH];
+        byte[] macKey = new byte[MAC_KEY_LENGTH];
+
+        shakeDigest.doOutput(encryptionKey, 0, encryptionKey.length);
+        shakeDigest.doOutput(macKey, 0, macKey.length);
+
+        return new Introduce1Command.HsIntroKeys(encryptionKey, macKey);
+    }
+
     public static Cipher createAesKey(int opmode, byte[] keyBytes, byte[] iv) {
         try {
             Cipher key = Cipher.getInstance("AES/CTR/NoPadding");
@@ -199,22 +255,16 @@ public class Cryptography {
         // string constant
         shakeDigest.update(stringConstant, 0, stringConstant.length);
         // keys = 32 bytes (AES), 16 bytes (IV), 32 bytes (MAC KEY)
-        byte[] aesKey = new byte[32];
-        byte[] iv = new byte[16];
-        byte[] macKey = new byte[32];
+        byte[] aesKey = new byte[CIPHER_KEY_LENGTH];
+        byte[] iv = new byte[IV_LENGTH];
+        byte[] macKey = new byte[MAC_KEY_LENGTH];
         shakeDigest.doOutput(aesKey, 0, aesKey.length);
         shakeDigest.doOutput(iv, 0, iv.length);
         shakeDigest.doOutput(macKey, 0, macKey.length);
 
-        // SHA3_256(INT_8(mac_key_len) | MAC_KEY | INT_8(salt_len) | SALT | ENCRYPTED)
-        MessageDigest macDigest = createDigest("SHA3-256");
-        macDigest.update(ByteBuffer.allocate(8).putLong(macKey.length).array());
-        macDigest.update(macKey);
-        macDigest.update(ByteBuffer.allocate(8).putLong(salt.length).array());
-        macDigest.update(salt);
-        macDigest.update(encrypted);
+        byte[] calculatedMac = hsMac(macKey, salt, encrypted);
 
-        if (!Arrays.equals(macDigest.digest(), mac)) return null;
+        if (!Arrays.equals(calculatedMac, mac)) return null;
 
         return Cryptography.createAesKey(Cipher.DECRYPT_MODE, aesKey, iv).update(encrypted);
     }

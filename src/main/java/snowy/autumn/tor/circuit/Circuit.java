@@ -8,6 +8,7 @@ import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.crypto.Keys;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
+import snowy.autumn.tor.hs.HiddenService;
 import snowy.autumn.tor.hs.IntroductionPoint;
 import snowy.autumn.tor.relay.Guard;
 import snowy.autumn.tor.relay.Handshakes;
@@ -226,6 +227,12 @@ public class Circuit {
         Keys keys = Handshakes.finishNtorHandshake(ntorOnionKey, fingerprint, extend2Command.getKeyPair(), extended2Command.getPublicKey(), extended2Command.getAuth());
         relayKeys.add(keys);
         return keys != null || Boolean.TRUE.equals(guard.terminate());
+    }
+
+    public IntroduceAckCommand.IntroduceAckStatus introduce1(IntroductionPoint introductionPoint, RouterMicrodesc rendezvousPoint, HiddenService hiddenService) {
+        sendCell(new Introduce1Command(circuitId, introductionPoint, rendezvousPoint, hiddenService));
+        IntroduceAckCommand introduceAck = waitForRelayCell((short) 0, RelayCell.INTRODUCE_ACK);
+        return introduceAck.getStatus();
     }
 
     private void addStream(short streamId) {
