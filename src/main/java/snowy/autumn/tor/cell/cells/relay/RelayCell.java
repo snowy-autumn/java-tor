@@ -41,6 +41,7 @@ public abstract class RelayCell extends Cell {
     public static final byte INTRODUCE_ACK = 40;
     public static final byte ESTABLISH_RENDEZVOUS = 33;
     public static final byte RENDEZVOUS_ESTABLISHED = 39;
+    public static final byte RENDEZVOUS2 = 37;
 
     protected byte relayCommand;
     short streamId;
@@ -139,6 +140,12 @@ public abstract class RelayCell extends Cell {
             }
             case RENDEZVOUS_ESTABLISHED -> {
                 return (T) new RendezvousEstablishedCommand(circuitId);
+            }
+            case RENDEZVOUS2 -> {
+                byte[] publicKey = new byte[32];
+                byte[] auth = new byte[32];
+                ByteBuffer.wrap(data).get(publicKey).get(auth);
+                return (T) new Rendezvous2Command(circuitId, publicKey, auth, data);
             }
             default -> throw new Error("Unknown relay command received: " + command);
         }

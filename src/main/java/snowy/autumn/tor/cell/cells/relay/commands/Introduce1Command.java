@@ -41,6 +41,7 @@ public class Introduce1Command extends RelayCell {
     private byte[] generateEncryptedPlaintext(int maxLength) {
         byte[] rendezvousLinkSpecifiers = rendezvousPointMicrodesc.generateLinkSpecifiers();
         ByteBuffer buffer = ByteBuffer.allocate(maxLength);
+        // Rendezvous cookie
         buffer.put(rendezvousCookie);
         // Extensions
         buffer.put((byte) 0);
@@ -85,10 +86,15 @@ public class Introduce1Command extends RelayCell {
         // Temporary public key
         buffer.put(temporaryKeyPair.publicKey());
         // Encrypted
-        HsIntroKeys hsIntroKeys = Cryptography.HS_NTOR_KDF(temporaryKeyPair.privateKey(), temporaryKeyPair.publicKey(), introductionPoint, hiddenService);
+        HsIntroKeys hsIntroKeys = Cryptography.HS_INTRO_KDF(temporaryKeyPair.privateKey(), temporaryKeyPair.publicKey(), introductionPoint, hiddenService);
         buffer.put(generateEncrypted(hsIntroKeys.encryptionKey(), buffer.remaining()));
         byte[] allFields = buffer.array();
         // Mac
         return ByteBuffer.allocate(MAX_LENGTH).put(allFields).put(Cryptography.hsMac(hsIntroKeys.macKey(), allFields)).array();
     }
+
+    public KeyPair getKeyPair() {
+        return temporaryKeyPair;
+    }
+
 }

@@ -5,6 +5,7 @@ import snowy.autumn.tor.cell.cells.*;
 import snowy.autumn.tor.cell.cells.relay.RelayCell;
 import snowy.autumn.tor.cell.cells.relay.commands.*;
 import snowy.autumn.tor.crypto.Cryptography;
+import snowy.autumn.tor.crypto.KeyPair;
 import snowy.autumn.tor.crypto.Keys;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
@@ -237,15 +238,28 @@ public class Circuit {
     }
 
     public IntroduceAckCommand.IntroduceAckStatus introduce1(IntroductionPoint introductionPoint, RouterMicrodesc rendezvousPoint, byte[] rendezvousCookie, HiddenService hiddenService) {
-        if (!sendCell(new Introduce1Command(circuitId, introductionPoint, rendezvousPoint, rendezvousCookie, hiddenService))) return null;
+        Introduce1Command introduce1 = new Introduce1Command(circuitId, introductionPoint, rendezvousPoint, rendezvousCookie, hiddenService);
+        if (!sendCell(introduce1)) return null;
         IntroduceAckCommand introduceAck = waitForRelayCell((short) 0, RelayCell.INTRODUCE_ACK);
+        introduceAck.getStatus().setKeyPair(introduce1.getKeyPair());
         return introduceAck.getStatus();
+    }
+
+    public boolean rendezvous(KeyPair keyPair, IntroductionPoint introductionPoint) {
+        Rendezvous2Command rendezvous2 = waitForRelayCell((short) 0, RelayCell.RENDEZVOUS2);
+        Keys keys = Cryptography.deriveHsNtorKeys(keyPair.privateKey(), keyPair.publicKey(), introductionPoint, rendezvous2.getPublicKey(), rendezvous2.getAuth());
+        if (keys != null) relayKeys.add(keys);
+        return keys != null;
     }
 
     private void addStream(short streamId) {
         streamsLock.lock();
         streamDataHashMap.put(streamId, new Stream(streamId));
         streamsLock.unlock();
+    }
+
+    public boolean openHSStream(short streamId, int port) {
+        return openStream(streamId, "", port);
     }
 
     public boolean openStream(short streamId, String address, int port) {
@@ -275,7 +289,7 @@ public class Circuit {
     public boolean destroy(boolean terminateGuard) {
         // Clients should always send NONE as the reason for a DESTROY cell.
         boolean success = sendCell(new DestroyCell(circuitId, connected = DestroyCell.DestroyReason.NONE.getReason()));
-        guard.terminate();
+        if (terminateGuard) guard.terminate();
         return success;
     }
 

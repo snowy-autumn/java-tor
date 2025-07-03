@@ -91,7 +91,7 @@ public class Cryptography {
     }
 
     private static byte[] sha256hmac(byte[] message, byte[] key) {
-        Mac hmacSHA256 = null;
+        Mac hmacSHA256;
         try {
             hmacSHA256 = Mac.getInstance("HmacSHA256");
             SecretKeySpec secretKeySpec = new SecretKeySpec(key, "HmacSHA256");
@@ -179,12 +179,64 @@ public class Cryptography {
         return new Keys(keys[0], keys[1], keys[2], keys[3], keys[4]);
     }
 
-    public static Introduce1Command.HsIntroKeys HS_NTOR_KDF(byte[] x, byte[] X, IntroductionPoint introductionPoint, HiddenService hiddenService) {
-        //             intro_secret_hs_input = EXP(B,x) | AUTH_KEY | X | B | PROTOID
-        //             info = m_hsexpand | N_hs_subcred
-        //             hs_keys = SHAKE256_KDF(intro_secret_hs_input | t_hsenc | info, S_KEY_LEN+MAC_LEN)
-        //             ENC_KEY = hs_keys[0:S_KEY_LEN]
-        //             MAC_KEY = hs_keys[S_KEY_LEN:S_KEY_LEN+MAC_KEY_LEN]
+    private static Keys HS_NTOR_KDF(byte[] keySeed) {
+        // K = KDF(NTOR_KEY_SEED | m_hsexpand,    SHA3_256_LEN *2 + S_KEY_LEN* 2)
+        SHAKEDigest shakeDigest = new SHAKEDigest(256);
+        byte[] keyMaterial = ByteBuffer.allocate(keySeed.length + HS_NTOR_m_hsexpand.length())
+                .put(keySeed)
+                .put(HS_NTOR_m_hsexpand.getBytes())
+                .array();
+
+        shakeDigest.update(keyMaterial, 0, keyMaterial.length);
+
+        byte[] digestForward = new byte[SHA3_256_LENGTH];
+        byte[] digestBackward = new byte[SHA3_256_LENGTH];
+        byte[] encryptForward = new byte[CIPHER_KEY_LENGTH];
+        byte[] decryptBackward = new byte[CIPHER_KEY_LENGTH];
+        shakeDigest.doOutput(digestForward, 0, digestForward.length);
+        shakeDigest.doOutput(digestBackward, 0, digestBackward.length);
+        shakeDigest.doOutput(encryptForward, 0, encryptForward.length);
+        shakeDigest.doOutput(decryptBackward, 0, decryptBackward.length);
+
+        return new Keys(digestForward, digestBackward, encryptForward, decryptBackward);
+    }
+
+    public static Keys deriveHsNtorKeys(byte[] x, byte[] X, IntroductionPoint introductionPoint, byte[] Y, byte[] auth) {
+        byte[] B = introductionPoint.encryptionKey();
+        byte[] xY = computeSharedSecret(x, Y);
+        byte[] xB = computeSharedSecret(x, B);
+
+        byte[] rendSecretHsInput = ByteBuffer.allocate(32 + 32 + 32 + 32 + 32 + 32 + HS_NTOR_PROTOID.length())
+                .put(xY)
+                .put(xB)
+                .put(introductionPoint.authKey())
+                .put(B)
+                .put(X)
+                .put(Y)
+                .put(HS_NTOR_PROTOID.getBytes())
+                .array();
+
+        byte[] verify = Cryptography.hsMac(rendSecretHsInput, HS_NTOR_t_hsverify.getBytes());
+        byte[] authInput = ByteBuffer.allocate(32 + 32 + 32 + 32 + 32 + HS_NTOR_PROTOID.length() + "Server".length())
+                .put(verify)
+                .put(introductionPoint.authKey())
+                .put(B)
+                .put(Y)
+                .put(X)
+                .put(HS_NTOR_PROTOID.getBytes())
+                .put("Server".getBytes())
+                .array();
+
+        byte[] calculatedAuth = hsMac(authInput, HS_NTOR_t_hsmac.getBytes());
+        if (!Arrays.equals(auth, calculatedAuth)) return null;
+
+        byte[] NTOR_KEY_SEED = hsMac(rendSecretHsInput, HS_NTOR_t_hsenc.getBytes());
+
+        return HS_NTOR_KDF(NTOR_KEY_SEED);
+    }
+
+
+    public static Introduce1Command.HsIntroKeys HS_INTRO_KDF(byte[] x, byte[] X, IntroductionPoint introductionPoint, HiddenService hiddenService) {
         SHAKEDigest shakeDigest = new SHAKEDigest(256);
         // intro_secret_hs_input = EXP(B,x) | AUTH_KEY | X | B | PROTOID
         shakeDigest.update(computeSharedSecret(x, introductionPoint.encryptionKey()), 0, 32);
