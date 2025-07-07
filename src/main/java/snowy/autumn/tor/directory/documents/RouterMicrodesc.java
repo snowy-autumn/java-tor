@@ -8,6 +8,15 @@ import java.util.Base64;
 
 public class RouterMicrodesc {
 
+    public static class Flags {
+        public static final byte GUARD = 1;
+        public static final byte EXIT = (1 << 1);
+        public static final byte BAD_EXIT = (1 << 2);
+        public static final byte FAST = (1 << 3);
+        public static final byte HS_DIR = (1 << 4);
+        public static final byte MIDDLE_ONLY = (1 << 5);
+    }
+
     public static final byte IPv4_LINK_SPECIFIER = 0;
     public static final byte IPv6_LINK_SPECIFIER = 1;
     public static final byte LEGACY_ID_LINK_SPECIFIER = 2;
@@ -22,8 +31,11 @@ public class RouterMicrodesc {
 
     String ipv6host;
     int ipv6port;
+    // Only some flags will be stored in this value.
+    // 1bit - Guard, 2bit - Exit, 3bit - BadExit, 4bit - Fast, 5bit - HSDir, 6bit - MiddleOnly
+    byte flags = 0;
 
-    public RouterMicrodesc(String host, int port, byte[] fingerprint, String microdescHash, String ipv6host, int ipv6port) {
+    public RouterMicrodesc(String host, int port, byte[] fingerprint, String microdescHash, String ipv6host, int ipv6port, String[] flags) {
         // We assume that every relay in the consensus has at least an ipv4 address, fingerprint and an ed25519 identity.
         this.host = host;
         this.port = port;
@@ -31,6 +43,24 @@ public class RouterMicrodesc {
         this.microdescHash = microdescHash;
         this.ipv6host = ipv6host;
         this.ipv6port = ipv6port;
+        setFlags(flags);
+    }
+
+    private void setFlags(String[] flags) {
+        for (String flag : flags) {
+            switch (flag) {
+                case "guard" -> this.flags |= Flags.GUARD;
+                case "exit" -> this.flags |= Flags.EXIT;
+                case "badexit" -> this.flags |= Flags.BAD_EXIT;
+                case "fast" -> this.flags |= Flags.FAST;
+                case "hsdir" -> this.flags |= Flags.HS_DIR;
+                case "middleonly" -> this.flags |= Flags.MIDDLE_ONLY;
+            }
+        }
+    }
+
+    public boolean isFlag(byte flag) {
+        return (flags & flag) != 0;
     }
 
     public void updateFromMicrodesc(String microdesc) {

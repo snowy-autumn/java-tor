@@ -3,14 +3,12 @@ package snowy.autumn.tor.directory.documents;
 import snowy.autumn.tor.hs.HiddenService;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class MicrodescConsensus {
 
     HashMap<String, Integer> params = new HashMap<>();
     ArrayList<RouterMicrodesc> microdescs = new ArrayList<>();
-    ArrayList<RouterMicrodesc> potentialGuards = new ArrayList<>();
-    ArrayList<RouterMicrodesc> fastNodes = new ArrayList<>();
-    ArrayList<RouterMicrodesc> potentialExits = new ArrayList<>();
     ArrayList<HiddenService.HSDir> hsDirs = new ArrayList<>();
 
     // SRV - Shared Random Value
@@ -38,6 +36,11 @@ public class MicrodescConsensus {
             microdescConsensus.params.put(param.split("=")[0], Integer.valueOf(param.split("=")[1]));
         }
 
+        // Parsing the known-flags listing.
+        int startKnownFlags = consensusData.indexOf("\nknown-flags ");
+        int endKnownFlags = consensusData.indexOf("\n", startKnownFlags + 1);
+        Set<String> knownFlags = Arrays.stream(consensusData.substring(startKnownFlags, endKnownFlags).trim().split(" ")).collect(Collectors.toSet());
+
         // Parsing the random shared secrets. (We'll assume they're adjacent in the consensus)
         int prevSRVStart = consensusData.indexOf("\nshared-rand-previous-value");
         int currentSRVStart = consensusData.indexOf("\nshared-rand-current-value", prevSRVStart);
@@ -56,23 +59,22 @@ public class MicrodescConsensus {
             int port = Integer.parseInt(routerInfo[5]);
             String microdescHash = ref.substring(ref.indexOf("\nm ") + 3).split("\n")[0];
 
-            // Todo: verify the all flags are listed in the consensus's known-flags listing.
-            String statusFlags = ref.substring(ref.indexOf("\ns ") + 3).split("\n")[0].strip().toLowerCase();
+            // I'm not sure whether I'm supposed to do this, but since I don't think we'll ever be in a situation where this would occur, then I've added it anyway.
+            String statusFlags = ref.substring(ref.indexOf("\ns ") + 3).split("\n")[0].strip();
+            if (!Arrays.stream(statusFlags.split(" ")).allMatch(knownFlags::contains)) continue;
+            statusFlags = statusFlags.toLowerCase();
 
             String[] routerIpv6Info = new String[2];
 
             if (ref.contains("\na "))
                 routerIpv6Info = ref.substring(ref.indexOf("\na ") + 3).split("\n")[0].substring(1).split("]:");
 
-            RouterMicrodesc microdesc = new RouterMicrodesc(host, port, fingerprint, microdescHash, routerIpv6Info[0], routerIpv6Info[0] == null ? -1 : Integer.parseInt(routerIpv6Info[1]));
-
             // We'll check whether the node is listed as Stable, Running and Valid.
-            if (statusFlags.contains("stable") && statusFlags.contains("running") && statusFlags.contains("valid")) {
-                if (statusFlags.contains("guard")) microdescConsensus.potentialGuards.add(microdesc);
-                if (statusFlags.contains("exit") && !statusFlags.contains("badexit")) microdescConsensus.potentialExits.add(microdesc);
-                if (statusFlags.contains("fast")) microdescConsensus.fastNodes.add(microdesc);
-                if (statusFlags.contains("hsdir")) microdescConsensus.hsDirs.add(new HiddenService.HSDir(microdesc, new byte[0]));
-            }
+            if (!(statusFlags.contains("stable") && statusFlags.contains("running") && statusFlags.contains("valid"))) continue;
+            RouterMicrodesc microdesc = new RouterMicrodesc(host, port, fingerprint, microdescHash, routerIpv6Info[0], routerIpv6Info[0] == null ? -1 : Integer.parseInt(routerIpv6Info[1]), statusFlags.split(" "));
+
+            if (microdesc.isFlag(RouterMicrodesc.Flags.HS_DIR))
+                microdescConsensus.hsDirs.add(new HiddenService.HSDir(microdesc, new byte[0]));
 
             microdescConsensus.microdescs.add(microdesc);
         }
@@ -127,6 +129,10 @@ public class MicrodescConsensus {
 
     public ArrayList<HiddenService.HSDir> getHsDirs() {
         return hsDirs;
+    }
+
+    public List<RouterMicrodesc> getAllWithFlag(byte flag) {
+        return microdescs.stream().filter(microdesc -> microdesc.isFlag(flag)).toList();
     }
 
 }

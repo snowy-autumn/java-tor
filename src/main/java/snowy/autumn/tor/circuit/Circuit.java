@@ -258,15 +258,18 @@ public class Circuit {
         streamsLock.unlock();
     }
 
-    public boolean openHSStream(short streamId, int port) {
+    public int openHSStream(short streamId, int port) {
         return openStream(streamId, "", port);
     }
 
-    public boolean openStream(short streamId, String address, int port) {
+    public static final int STREAM_SUCCESSFUL = 0;
+    public static final int STREAM_FAILURE_UNKNOWN = -1;
+
+    public int openStream(short streamId, String address, int port) {
         addStream(streamId);
         sendCell(new BeginCommand(circuitId, streamId, address, port));
         RelayCell relayCell = waitForRelayCell(streamId, RelayCell.CONNECTED, RelayCell.END);
-        return relayCell instanceof ConnectedCommand;
+        return relayCell instanceof ConnectedCommand ? STREAM_SUCCESSFUL : relayCell instanceof EndCommand endCommand ? endCommand.getReason() : STREAM_FAILURE_UNKNOWN;
     }
 
     public boolean openDirStream(short streamId) {

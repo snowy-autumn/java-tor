@@ -4,6 +4,7 @@ import snowy.autumn.tor.cell.Cell;
 import snowy.autumn.tor.cell.cells.relay.commands.*;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Random;
 
 public abstract class RelayCell extends Cell {
@@ -96,9 +97,22 @@ public abstract class RelayCell extends Cell {
 
         switch (command) {
             case CONNECTED -> {
-                // Since we do not intend to cache the address given to us by the exit node, we can just skip parsing the relay command and return an empty cell.
-                return (T) new ConnectedCommand(circuitId, streamId);
-                // Since we do not intend to cache the address given to us by the exit node, we can just skip parsing the relay command and return an empty cell.
+                if (data.length == 0)
+                    return (T) new ConnectedCommand(circuitId, streamId);
+
+                buffer = ByteBuffer.wrap(data);
+                byte addressType = data.length == 8 ? ConnectedCommand.IPV4 : ConnectedCommand.IPV6;
+                byte[] address = new byte[addressType == ConnectedCommand.IPV4 ? 4 : 16];
+                buffer.get(address);
+                if (data.length > 8) {
+                    // This should only happen when the returned address is an IPv6 address.
+                    byte receivedType = buffer.get();
+                    if (receivedType != addressType || !Arrays.equals(Arrays.copyOf(address, 4), new byte[4]))
+                        return (T) new ConnectedCommand(circuitId, streamId, ConnectedCommand.INVALID, null);
+                    buffer.get(address);
+                }
+
+                return (T) new ConnectedCommand(circuitId, streamId, addressType, address);
             }
             case DATA -> {
                 return (T) new DataCommand(circuitId, streamId, data);
