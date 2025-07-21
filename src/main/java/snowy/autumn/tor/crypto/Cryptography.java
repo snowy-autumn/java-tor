@@ -276,7 +276,6 @@ public class Cryptography {
     }
 
     public static KeyPair generateX25519KeyPair() {
-
         X25519KeyPairGenerator keyPairGenerator = new X25519KeyPairGenerator();
         try {
             keyPairGenerator.init(new X25519KeyGenerationParameters(SecureRandom.getInstanceStrong()));

@@ -1,6 +1,7 @@
 package snowy.autumn.tor.maths;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 
 public class Ed25519 {
 
@@ -42,6 +43,10 @@ public class Ed25519 {
 
         public byte[] compress() {
             byte[] publicKey = reverseByteArray(y.toByteArray());
+
+            // Note: This should only happen when the public key is of size 31. If the size is neither 31 nor 32, then something very strange has happened.
+            if (publicKey.length != 32)
+                publicKey = ByteBuffer.allocate(32).put(publicKey).array();
 
             // Probably don't need to clear that bit, but it can't hurt.
             publicKey[31] &= 0x7F;
