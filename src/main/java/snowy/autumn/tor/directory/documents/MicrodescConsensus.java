@@ -26,6 +26,18 @@ public class MicrodescConsensus {
         this.params = params;
     }
 
+	public MicrodescConsensus(byte[] previousSRV, byte[] currentSRV, HashMap<String, Integer> params, ArrayList<RouterMicrodesc> microdescs) {
+		this(params);
+		this.previousSRV = previousSRV;
+		this.currentSRV = currentSRV;
+		this.microdescs = microdescs;
+        Collections.shuffle(this.microdescs);
+        for (RouterMicrodesc microdesc : this.microdescs) {
+            if (microdesc.isFlag(RouterMicrodesc.Flags.HS_DIR))
+                hsDirs.add(new HiddenService.HSDir(microdesc, new byte[0]));
+        }
+	}
+
     public static MicrodescConsensus parse(String consensusData) {
         MicrodescConsensus microdescConsensus = new MicrodescConsensus();
 
@@ -132,7 +144,15 @@ public class MicrodescConsensus {
     }
 
     public List<RouterMicrodesc> getAllWithFlag(byte flag) {
-        return microdescs.stream().filter(microdesc -> microdesc.isFlag(flag)).toList();
+		return getAllWithFlag(microdescs, flag);
     }
+
+	public static List<RouterMicrodesc> getAllWithFlag(List<RouterMicrodesc> microdescs, byte flag) {
+		return microdescs.stream().filter(microdesc -> microdesc.isFlag(flag)).toList();
+	}
+
+	public static List<RouterMicrodesc> getAllWithoutFlag(List<RouterMicrodesc> microdescs, byte flag) {
+		return microdescs.stream().filter(microdesc -> !microdesc.isFlag(flag)).toList();
+	}
 
 }

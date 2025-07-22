@@ -55,7 +55,7 @@ public class Directory {
             if (relayCell instanceof EndCommand) break;
             response.append(new String(((DataCommand) relayCell).getData()));
         }
-        if (((EndCommand) relayCell).getReason() == EndCommand.REASON_DONE)
+        if (((EndCommand) relayCell).getReason() == EndCommand.EndReason.REASON_DONE.getReason())
             return response.toString();
         return null;
     }

@@ -1,5 +1,6 @@
 package snowy.autumn.tor.directory.documents;
 
+import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -46,6 +47,28 @@ public class RouterMicrodesc {
         setFlags(flags);
     }
 
+	public RouterMicrodesc(byte flags, byte[] host, short port, byte[] fingerprint, byte[] ed25519Id, byte[] ntorOnionKey, byte[] microdescHash, byte[] ipv6host, short ipv6port) {
+		this.flags = flags;
+		try {
+			this.host = Inet4Address.getByAddress(host).getHostAddress();
+		}
+		catch (UnknownHostException e) {
+			throw new RuntimeException(e);
+		}
+		this.port = Short.toUnsignedInt(port);
+		this.fingerprint = fingerprint;
+		this.ed25519Id = ed25519Id;
+		this.ntorOnionKey = ntorOnionKey;
+		this.microdescHash = Base64.getEncoder().withoutPadding().encodeToString(microdescHash);
+		try {
+			this.ipv6host = ipv6host == null ? null : Inet6Address.getByAddress(ipv6host).getHostAddress();
+		}
+		catch (UnknownHostException e) {
+			throw new RuntimeException(e);
+		}
+		this.ipv6port = Short.toUnsignedInt(ipv6port);
+	}
+
     private void setFlags(String[] flags) {
         for (String flag : flags) {
             switch (flag) {
@@ -62,6 +85,10 @@ public class RouterMicrodesc {
     public boolean isFlag(byte flag) {
         return (flags & flag) != 0;
     }
+
+	public byte getFlags() {
+		return flags;
+	}
 
     public void updateFromMicrodesc(String microdesc) {
         int ntorOnionKeyStart = microdesc.indexOf("ntor-onion-key");
