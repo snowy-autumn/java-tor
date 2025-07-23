@@ -6,7 +6,7 @@ It is only meant to be used when access to the tor network is required but priva
 
 ## The state of the project so far
 
-- At the moment there is no client, but rather an implementation of the protocol that one could use to create a client.
+- At the moment there is only a very basic (and probably rather buggy) client.
 - It is possible to fetch a microdesc consensus, create and extend circuits and open streams.
 - It is possible to connect to v3 hidden services.
 
@@ -16,76 +16,75 @@ For example, at the moment, the implementation uses whatever unix time java give
 
 ---
 
-Example usage of this implementation for creating regular circuits (This is not a great way to do this, it's just the way the implementation works at the moment):
+Example usage of the very simple client that currently exists (Connecting to a regular target host):
 ```java
-// To connect to a directory.
-// Directory authorities can be found in Directories.java
-Directory directory = new Directory(directoryHost, directoryPort);
-System.out.println("Directory ready: " + directory.prepareCircuit());
-// Fetch the latest microdesc consensus.
-MicrodescConsensus microdescConsensus = directory.fetchMicrodescConsensus();
-if (microdescConsensus != null) System.out.println("Consensus fetched.");
-// Update the circuit used when connecting to the directory with information from the recently fetched consensus.
-directory.updateCircuit(microdescConsensus);
-// Fetch all the microdescriptors that are present in the microdesc consensus.
-directory.fetchMicrodescriptors(microdescConsensus);
+// Create a TorClient instance.
+TorClient torClient = new TorClient();
+// Decide whether you want to load in cached data to skip fetching a microdesc consensus, or whether you want to fetch one.
+if (!Path.of("tor_cached.data").toFile().exists()) {
+    // Pick a directory authority to fetch from.
+    torClient.initialise(<directory authority>);
+    // Cache the data fetched from the directory authority.
+    torClient.cacheClientData("tor_cached.data");
+}
+else
+    // Load in the cached data.
+    torClient.initialiseCached("tor_cached.data");
 
-// At this point pick 3 nodes from the microdesc consensus in a way that is with accordance to the spec.
-// Connect to the guard
-Guard guard = new Guard(guardMicrodesc);
-System.out.println("Connected: " + guard.connect());
-System.out.println("General Tor Handshake: " + guard.generalTorHandshake());
-guard.startCellListener();
-
-// Create the circuit.
-Circuit circuit = new Circuit(<random circuitId>, guard);
-circuit.updateFromConsensus(microdescConsensus);
-System.out.println("First hop: " + circuit.create2(guardMicrodesc));
-// Extend the circuit.
-System.out.println("Second hop: " + circuit.extend2(middleMicrodesc));
-System.out.println("Third hop: " + circuit.extend2(exitMicrodesc));
-
-System.out.println("Stream opened: " + circuit.openStream(<random streamId>, destinationHost, destinationPort));
-circuit.sendData(<streamId>, <data>);
-
+// Attempt to connect to a certain destination.
+ConnectionInfo connectionInfo = torClient.connect(<destinationHost>, <destinationPort>);
+if (connectionInfo == null) {
+    System.out.println("Something went wrong while attempting to connect to the target host.");
+    return;
+}
+// If connectionInfo is not null but the connection still fails, that means that we've probably received an EndCommand from the edge relay.
+else if (!connectionInfo.isConnected()) {
+    System.out.println("Connection failed: " + EndCommand.EndReason.get(connectionInfo.getStatus()));
+    return;
+}
+// Attempt to send some data through the connection.
+if (!connectionInfo.getConnectionIO().write(<bytes>)) {
+    System.out.println("Write failed.");
+    return;
+}
+// Attempt to read a single relay-data cell worth of data from the connection.
+byte[] data = connectionInfo.getConnectionIO().read();
 . . .
 ```
 
-Example usage of this implementation for connecting to v3 hidden services:
+Example usage of connecting to v3 hidden services with the current basic client:
 ```java
-// Fetch a microdesc consensus and establish a circuit as demonstrated in the previous example.
+// Create a TorClient instance.
+TorClient torClient = new TorClient();
+// Decide whether you want to load in cached data to skip fetching a microdesc consensus, or whether you want to fetch one.
+// When attempting to connect to a hidden service there's less flexibility about not using a fresh consensus, since SRVs are being used.
+if (!Path.of("tor_cached.data").toFile().exists()) {
+    // Pick a directory authority to fetch from.
+    torClient.initialise(<directory authority>);
+    // Cache the data fetched from the directory authority.
+    torClient.cacheClientData("tor_cached.data");
+}
+else
+    // Load in the cached data.
+    torClient.initialiseCached("tor_cached.data");
 
-HiddenService hiddenService = new HiddenService(microdescConsensus, <.onion address>);
-HashSet<RouterMicrodesc> potentialHsDirs = hiddenService.possibleFetchDirectories();
-
-// Pick an HSDir at random from potentialHsDirs and attempt to fetch a Hidden Service Descriptor.
-HSDirectory hsDirectory = new HSDirectory(microdescConsensus, <Pick an hsDir at random from potentialHsDirs>, circuit);
-System.out.println("Extend to HSDir: " + hsDirectory.extendToDirectory());
-HiddenServiceDescriptor hsDesc = hsDirectory.fetchHSDescriptor(hiddenService);
-// Verify that the descriptor is valid.
-System.out.println("Is HS Descriptor Valid: " + hsDesc.isValid());
-
-// We'll open a new circuit we'll call `rendezvousCircuit` to a random OR we'd like to use as our rendezvous point.
-// The way to do this is listed in the previous example.
-// We'll send attempt to establish a rendezvous.
-byte[] rendezvousCookie = rendezvousCircuit.establishRendezvous();
-System.out.println("Rendezvous Established: " + (rendezvousCookie != null));
-
-// Now we'll pick a random introduction point from the Hidden Service Descriptor.
-IntroductionPoint introductionPoint = hsDesc.getIntroductionPoints().get(<random>);
-// We'll then create a new circuit we'll call `introductionCircuit` and extend it up to `introductionPoint`.
-System.out.println("Extended to the introduction point: " + introductionCircuit.extend2(introductionPoint));
-// Now we'll try to complete the introduction phase by using `introduce1` and checking the received status.
-IntroduceAckCommand.IntroduceAckStatus status = introductionCircuit.introduce1(introductionPoint, rendezvousPoint, rendezvousCookie, hiddenService);
-System.out.println("Introduction status: " + status);
-// We'll then close the introduction circuit.
-
-// Finally, we'll go back to our rendezvous circuit in order to finish the rendezvous.
-System.out.println("Rendezvous successful: " + rendezvousCircuit.rendezvous(status.getKeyPair(), introductionPoint));
-
-// If that was successful, then the circuit can now be used just like a regular circuit.
-// To open streams to a hidden service, we'll use `openHSStream` instead of `openStream`.
-System.out.println("HS stream opened: " + rendezvousCircuit.openHSStream(<random streamId>, destinationHSPort));
-rendezvousCircuit.sendData(<streamId>, <data>);
+// Attempt to connect to a certain v3 hidden service.
+ConnectionInfo connectionInfo = torClient.connectHS(<address>.onion, <HS port>);
+if (connectionInfo == null) {
+    System.out.println("Something went wrong while attempting to connect to the target host.");
+    return;
+}
+// If connectionInfo is not null but the connection still fails, that means that we've probably received an EndCommand from the rendezvous point.
+else if (!connectionInfo.isConnected()) {
+    System.out.println("Connection failed: " + EndCommand.EndReason.get(connectionInfo.getStatus()));
+    return;
+}
+// Attempt to send some data through the connection.
+if (!connectionInfo.getConnectionIO().write(<bytes>)) {
+    System.out.println("Write failed.");
+    return;
+}
+// Attempt to read a single relay-data cell worth of data from the connection.
+byte[] data = connectionInfo.getConnectionIO().read();
 . . .
 ```
