@@ -4,28 +4,29 @@ import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 
 import java.nio.ByteBuffer;
 
-public record IntroductionPoint(byte[] linkSpecifiers, byte[] ntorOnionKey, byte[] authKey, byte[] encryptionKey, byte[] fingerprint) {
+public record IntroductionPoint(byte[] linkSpecifiers, byte[] ntorOnionKey, byte[] authKey, byte[] encryptionKey, byte[] fingerprint, byte[] ed25519Id) {
 
     public IntroductionPoint(byte[] linkSpecifiers, byte[] ntorOnionKey, byte[] authKey, byte[] encryptionKey) {
-        this(linkSpecifiers, ntorOnionKey, authKey, encryptionKey, getFingerprintFromLinkSpecifiers(linkSpecifiers));
+        this(linkSpecifiers, ntorOnionKey, authKey, encryptionKey, getSpecificFromLinkSpecifiers(linkSpecifiers, RouterMicrodesc.LEGACY_ID_LINK_SPECIFIER, 20), getSpecificFromLinkSpecifiers(linkSpecifiers, RouterMicrodesc.ED25519_ID_LINK_SPECIFIER, 32));
     }
 
-    private static byte[] getFingerprintFromLinkSpecifiers(byte[] linkSpecifiers) {
+    // NOTE: This method will be completely overhauled once java 24 becomes more mainstream and the flexible constructor bodies feature gets more widely supported.
+    private static byte[] getSpecificFromLinkSpecifiers(byte[] linkSpecifiers, byte linkSpecifierType, int linkSpecifierLength) {
         // Parse the link specifiers
         ByteBuffer buffer = ByteBuffer.wrap(linkSpecifiers);
         byte linkSpecifierNum = buffer.get();
 
-        byte[] fingerprint = new byte[20];
+        byte[] linkSpecifier = new byte[linkSpecifierLength];
 
         for (int i = 0; i < linkSpecifierNum; i++) {
-            byte linkSpecifierType = buffer.get();
-            byte linkSpecifierLength = buffer.get();
-            if (linkSpecifierType == RouterMicrodesc.LEGACY_ID_LINK_SPECIFIER) {
-                if (linkSpecifierLength != 20) throw new Error("Invalid link specifier provided: Fingerprint is of length " + linkSpecifierLength); // This should never happen as long as everything's on the other ends is done according to the spec.
-                buffer.get(fingerprint);
-                return fingerprint;
+            byte lsType = buffer.get();
+            byte lsLength = buffer.get();
+            if (lsType == linkSpecifierType) {
+                if (lsLength != linkSpecifierLength) throw new Error("Invalid link specifier provided: LS type " + linkSpecifierType + " with length " + lsLength); // This should never happen as long as everything's on the other ends is done according to the spec.
+                buffer.get(linkSpecifier);
+                return linkSpecifier;
             }
-            else buffer.position(buffer.position() + linkSpecifierLength);
+            else buffer.position(buffer.position() + lsLength);
         }
 
         return null;

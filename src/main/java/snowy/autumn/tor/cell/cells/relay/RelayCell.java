@@ -134,16 +134,22 @@ public abstract class RelayCell extends Cell {
             }
             case EXTENDED2 -> {
                 buffer = ByteBuffer.wrap(data);
-                // Todo: Add support for ntor-v3
-                // Since we're only using the ntor handshake at the moment (NOT GOOD PRACTICE FOR MODERN CLIENTS),
-                // we don't need to worry about parsing other handshake types.
-                buffer.getShort(); // This should always be 64, so we can discard it.
-
+                short handshakeSize = buffer.getShort();
                 byte[] publicKey = new byte[32];
                 buffer.get(publicKey);
                 byte[] auth = new byte[32];
                 buffer.get(auth);
-                return (T) new Extended2Command(circuitId, publicKey, auth);
+                if (handshakeSize == 64)
+                    // ntor handshake
+                    return (T) new Extended2Command(circuitId, publicKey, auth);
+                else if (handshakeSize > 64) {
+                    // ntor-v3 handshake
+                    byte[] encryptedMessage = new byte[handshakeSize - 64];
+                    buffer.get(encryptedMessage);
+                    return (T) new Extended2Command(circuitId, publicKey, auth, encryptedMessage);
+                }
+                else
+                    throw new Error("Unknown handshake size: " + handshakeSize);
             }
             case TRUNCATED -> {
                 return (T) new TruncatedCommand(circuitId, data[0]);

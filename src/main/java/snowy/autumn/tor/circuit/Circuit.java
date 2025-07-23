@@ -220,19 +220,30 @@ public class Circuit {
 
     public boolean extend2(IntroductionPoint introductionPoint) {
         Extend2Command extend2Command = new Extend2Command(circuitId, introductionPoint);
-        return extend2(extend2Command, introductionPoint.ntorOnionKey(), introductionPoint.fingerprint());
+        return extend2(extend2Command, introductionPoint.ntorOnionKey(), introductionPoint.fingerprint(), introductionPoint.ed25519Id());
     }
 
     public boolean extend2(RouterMicrodesc routerMicrodesc) {
-        Extend2Command extend2Command = new Extend2Command(circuitId, routerMicrodesc);
-        return extend2(extend2Command, routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint());
+        return extend2(routerMicrodesc, routerMicrodesc.getEd25519Id() == null ? Handshakes.NTOR : Handshakes.NTORv3);
     }
 
-    private boolean extend2(Extend2Command extend2Command, byte[] ntorOnionKey, byte[] fingerprint) {
+    public boolean extend2(RouterMicrodesc routerMicrodesc, short handshakeType) {
+        Extend2Command extend2Command = new Extend2Command(circuitId, routerMicrodesc, handshakeType);
+        return extend2(extend2Command, routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), routerMicrodesc.getEd25519Id());
+    }
+
+    private boolean extend2(Extend2Command extend2Command, byte[] ntorOnionKey, byte[] fingerprint, byte[] ed25519Id) {
         sendCell(extend2Command);
         Extended2Command extended2Command = waitForRelayCell((short) 0, RelayCell.EXTENDED2);
         if (extended2Command == null) return false;
-        Keys keys = Handshakes.finishNtorHandshake(ntorOnionKey, fingerprint, extend2Command.getKeyPair(), extended2Command.getPublicKey(), extended2Command.getAuth());
+        Keys keys = null;
+        if (extended2Command.getHandshakeType() == Handshakes.NTOR)
+            keys = Handshakes.finishNtorHandshake(ntorOnionKey, fingerprint, extend2Command.getKeyPair(), extended2Command.getPublicKey(), extended2Command.getAuth());
+        else if (extended2Command.getHandshakeType() == Handshakes.NTORv3) {
+            keys = Handshakes.finishNtorV3Handshake(ntorOnionKey, ed25519Id, extend2Command.getKeyPair(), extended2Command.getPublicKey(), extend2Command.getMac(), extended2Command.getAuth(), extended2Command.getEncryptedMessage());
+            byte[] serverMessage = keys.KH();
+            // There are no ntor-v3 supported extensions at the moment, so serverMessage is current not being used.
+        }
         relayKeys.add(keys);
         return keys != null || Boolean.TRUE.equals(guard.terminate());
     }
