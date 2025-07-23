@@ -10,9 +10,7 @@ import snowy.autumn.tor.cell.cells.relay.commands.Introduce1Command;
 import snowy.autumn.tor.hs.HiddenService;
 import snowy.autumn.tor.hs.IntroductionPoint;
 
-import javax.crypto.Cipher;
-import javax.crypto.Mac;
-import javax.crypto.NoSuchPaddingException;
+import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
@@ -33,6 +31,15 @@ public class Cryptography {
     public static final String NTOR_t_key    = NTOR_PROTOID + ":key_extract";
     public static final String NTOR_t_verify = NTOR_PROTOID + ":verify";
     public static final String NTOR_m_expand = NTOR_PROTOID + ":key_expand";
+
+    public static final String NTORv3_PROTOID = "ntor3-curve25519-sha3_256-1";
+    public static final byte[] NTORv3_VER_ENCAP = ENCAP("circuit extend".getBytes());
+    public static final byte[] NTORv3_t_msgkdf_ENCAP = ENCAP((NTORv3_PROTOID + ":kdf_phase1").getBytes());
+    public static final byte[] NTORv3_t_msgmac_ENCAP = ENCAP((NTORv3_PROTOID + ":msg_mac").getBytes());
+    public static final byte[] NTORv3_t_key_seed_ENCAP = ENCAP((NTORv3_PROTOID + ":key_seed").getBytes());
+    public static final byte[] NTORv3_t_verify_ENCAP = ENCAP((NTORv3_PROTOID + ":verify").getBytes());
+    public static final byte[] NTORv3_t_final_ENCAP = ENCAP((NTORv3_PROTOID + ":kdf_final").getBytes());
+    public static final byte[] NTORv3_t_auth_ENCAP = ENCAP((NTORv3_PROTOID + ":auth_final").getBytes());
 
     public static final String HS_NTOR_PROTOID = "tor-hs-ntor-curve25519-sha3-256-1";
     // Yes, I know that all of these already have `hs` in their name.
@@ -66,6 +73,10 @@ public class Cryptography {
     public static byte[] updateDigest(MessageDigest digest, byte[] data) {
         digest.update(data);
         return cloneDigest(digest).digest();
+    }
+
+    public static byte[] ENCAP(byte[] data) {
+        return ByteBuffer.allocate(8 + data.length).putLong(data.length).put(data).array();
     }
 
     public static Keys kdfTor(byte[] X, byte[] Y) {
@@ -177,6 +188,66 @@ public class Cryptography {
         }
 
         return new Keys(keys[0], keys[1], keys[2], keys[3], keys[4]);
+    }
+
+    public static Keys NTORv3_FINALKDF(byte[] x, byte[] X, byte[] B, byte[] ed25519Id, byte[] Y, byte[] MAC, byte[] auth, byte[] encryptedMessage) {
+        byte[] Yx = computeSharedSecret(x, Y);
+
+        byte[] Bx = computeSharedSecret(x, B);
+        byte[] secretInput = ByteBuffer.allocate(Yx.length + Bx.length + ed25519Id.length + B.length + X.length + Y.length + NTORv3_PROTOID.length() + NTORv3_VER_ENCAP.length)
+                .put(Yx)
+                .put(Bx)
+                .put(ed25519Id)
+                .put(B)
+                .put(X)
+                .put(Y)
+                .put(NTORv3_PROTOID.getBytes())
+                .put(NTORv3_VER_ENCAP)
+                .array();
+
+        byte[] ntorKeySeed = createDigest("SHA3-256", NTORv3_t_key_seed_ENCAP).digest(secretInput);
+
+        byte[] verify = createDigest("SHA3-256", NTORv3_t_verify_ENCAP).digest(secretInput);
+
+        byte[] authInput = ByteBuffer.allocate(verify.length + ed25519Id.length + B.length + Y.length + X.length + MAC.length + ENCAP(encryptedMessage).length + NTORv3_PROTOID.length() + "Server".length())
+                .put(verify)
+                .put(ed25519Id)
+                .put(B)
+                .put(Y)
+                .put(X)
+                .put(MAC)
+                .put(ENCAP(encryptedMessage))
+                .put(NTORv3_PROTOID.getBytes())
+                .put("Server".getBytes())
+                .array();
+
+        byte[] authExpected = createDigest("SHA3-256", NTORv3_t_auth_ENCAP).digest(authInput);
+        if (!Arrays.equals(auth, authExpected)) return null;
+
+        SHAKEDigest shakeDigest = new SHAKEDigest(256);
+        shakeDigest.update(NTORv3_t_final_ENCAP, 0, NTORv3_t_final_ENCAP.length);
+        shakeDigest.update(ntorKeySeed, 0, ntorKeySeed.length);
+
+        byte[] encryptionKey = new byte[CIPHER_KEY_LENGTH];
+        shakeDigest.doOutput(encryptionKey, 0, encryptionKey.length);
+        byte[] serverMessage;
+        try {
+            serverMessage = createAesKey(Cipher.DECRYPT_MODE, encryptionKey).doFinal(encryptedMessage);
+        } catch (IllegalBlockSizeException | BadPaddingException e) {
+            throw new RuntimeException(e);
+        }
+
+        byte[] clientDigest = new byte[SHA1_LENGTH];
+        shakeDigest.doOutput(clientDigest, 0, clientDigest.length);
+        byte[] serverDigest = new byte[SHA1_LENGTH];
+        shakeDigest.doOutput(serverDigest, 0, serverDigest.length);
+        byte[] clientKey = new byte[KEY_LENGTH];
+        shakeDigest.doOutput(clientKey, 0, clientKey.length);
+        byte[] serverKey = new byte[KEY_LENGTH];
+        shakeDigest.doOutput(serverKey, 0, serverKey.length);
+
+        // Here I'm using KH for storing serverMessage, since KH is not calculated as part of this handshake.
+        return new Keys(clientDigest, serverDigest, clientKey, serverKey, serverMessage);
     }
 
     private static Keys HS_NTOR_KDF(byte[] keySeed) {

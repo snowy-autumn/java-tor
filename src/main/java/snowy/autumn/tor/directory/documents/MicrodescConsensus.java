@@ -36,6 +36,8 @@ public class MicrodescConsensus {
             if (microdesc.isFlag(RouterMicrodesc.Flags.HS_DIR))
                 hsDirs.add(new HiddenService.HSDir(microdesc, new byte[0]));
         }
+
+        postUpdate();
 	}
 
     public static MicrodescConsensus parse(String consensusData) {

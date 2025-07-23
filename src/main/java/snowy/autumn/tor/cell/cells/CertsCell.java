@@ -28,7 +28,6 @@ public class CertsCell extends Cell {
                 .findFirst().orElse(null);
         if (extension == null) return false;
 
-
         Ed25519PublicKeyParameters publicKey = new Ed25519PublicKeyParameters(extension.data());
         byte[] certType4EncodedSigned = certType4Ed25519.encodedSigned();
         if (!publicKey.verify(Ed25519.Algorithm.Ed25519, null, certType4EncodedSigned, 0, certType4EncodedSigned.length, certType4Ed25519.signature(), 0))

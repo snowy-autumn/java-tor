@@ -200,12 +200,19 @@ public class Circuit {
         return createdFastCell.verify(keys) || Boolean.TRUE.equals(guard.terminate());
     }
 
-    public boolean create2(RouterMicrodesc routerMicrodesc) {
-        Create2Cell create2Cell = new Create2Cell(circuitId, routerMicrodesc);
+    public boolean create2(RouterMicrodesc routerMicrodesc, short handshakeType) {
+        Create2Cell create2Cell = new Create2Cell(circuitId, routerMicrodesc, handshakeType);
         guard.sendCell(create2Cell);
         Created2Cell created2Cell = waitForCellByCommand(Cell.CREATED2);
         if (created2Cell == null) return false;
-        Keys keys = Handshakes.finishNtorHandshake(routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), create2Cell.getKeyPair(), created2Cell.getPublicKey(), created2Cell.getAuth());
+        Keys keys = null;
+        if (created2Cell.getHandshakeType() == Handshakes.NTOR)
+            keys = Handshakes.finishNtorHandshake(routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), create2Cell.getKeyPair(), created2Cell.getPublicKey(), created2Cell.getAuth());
+        else if (created2Cell.getHandshakeType() == Handshakes.NTORv3) {
+            keys = Handshakes.finishNtorV3Handshake(routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getEd25519Id(), create2Cell.getKeyPair(), created2Cell.getPublicKey(), create2Cell.getMac(), created2Cell.getAuth(), created2Cell.getEncryptedMessage());
+            byte[] serverMessage = keys.KH();
+            // There are no ntor-v3 supported extensions at the moment, so serverMessage is current not being used.
+        }
         relayKeys.add(keys);
         this.connected = CONNECTED;
         return keys != null || Boolean.TRUE.equals(guard.terminate());

@@ -114,15 +114,22 @@ public abstract class Cell {
                 return (T) new CreatedFastCell(circuitId, keyMaterial, KH);
             }
             case CREATED2 -> {
-                // Todo: Add support for ntor-v3
-                // Since we're only using the ntor handshake at the moment (NOT GOOD PRACTICE FOR MODERN CLIENTS),
-                // we don't need to worry about parsing other handshake types.
-                buffer.getShort(); // This should always be 64, so we can discard it.
+                short handshakeSize = buffer.getShort();
                 byte[] publicKey = new byte[32];
                 buffer.get(publicKey);
                 byte[] auth = new byte[32];
                 buffer.get(auth);
-                return (T) new Created2Cell(circuitId, publicKey, auth);
+                if (handshakeSize == 64)
+                    // ntor handshake
+                    return (T) new Created2Cell(circuitId, publicKey, auth);
+                else if (handshakeSize > 64) {
+                    // ntor-v3 handshake
+                    byte[] encryptedMessage = new byte[handshakeSize - 64];
+                    buffer.get(encryptedMessage);
+                    return (T) new Created2Cell(circuitId, publicKey, auth, encryptedMessage);
+                }
+                else
+                    throw new Error("Unknown handshake size: " + handshakeSize);
             }
             case RELAY -> {
                 return (T) new RelayCell.EncryptedRelayCell(circuitId, false, body);
