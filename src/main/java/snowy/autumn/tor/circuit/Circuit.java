@@ -43,7 +43,8 @@ public class Circuit {
 
     public <T extends Collection<? extends Relay>> Circuit(int circuitId, T relays, Collection<? extends Keys> relayKeys) {
         this.circuitId = circuitId | 0x80000000;
-        this.relays.addAll(relays);
+        for (Relay relay : relays)
+            addRelay(relay);
         this.relayKeys.addAll(relayKeys);
         this.guard = (Guard) this.relays.getFirst();
         init();
@@ -51,8 +52,7 @@ public class Circuit {
 
     public Circuit(int circuitId, Guard guard) {
         this.circuitId = circuitId | 0x80000000;
-        relays.add(guard);
-        this.guard = guard;
+        this.guard = addRelay(guard);
         init();
     }
 
@@ -62,6 +62,12 @@ public class Circuit {
 
     private void init() {
         guard.addCircuit(circuitId, this);
+    }
+
+    private <T extends Relay> T addRelay(T relay) {
+        relay.initialiseDeliverWindow(circuitId);
+        this.relays.add(relay);
+        return relay;
     }
 
     public void addCell(Cell cell) {
@@ -171,7 +177,7 @@ public class Circuit {
         byte[] digest = Cryptography.updateDigest(relayKeys.get(level).digestForward(), body);
         // Todo: Replace this part with an actual calculation of when the relay would send a SEND ME command and store only the right digest.
         lastDigestsLock.lock();
-        lastDigests.add(digest);
+        lastDigests.add(Arrays.copyOf(digest, 20));
         lastDigestsLock.unlock();
         System.arraycopy(digest, 0, body, 5, 4);
         // encrypt the relay cell body

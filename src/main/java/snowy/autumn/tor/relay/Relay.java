@@ -2,10 +2,11 @@ package snowy.autumn.tor.relay;
 
 import snowy.autumn.tor.circuit.Circuit;
 
+import java.util.HashMap;
+
 public class Relay {
 
-    int deliverWindow = 1000;
-    int total = 0;
+    HashMap<Integer, Integer> deliverWindows = new HashMap<>();
 
     String host;
     int port;
@@ -17,12 +18,17 @@ public class Relay {
         this.fingerprint = fingerprint;
     }
 
+    public void initialiseDeliverWindow(int circuitId) {
+        this.deliverWindows.put(circuitId, 1000);
+    }
+
     public void received(Circuit circuit, byte[] digest) {
-        total++;
+        int deliverWindow = deliverWindows.get(circuit.getCircuitId());
         if (--deliverWindow <= 900) {
             circuit.handleSendMe((short) 0, digest);
             deliverWindow += 100;
         }
+        deliverWindows.put(circuit.getCircuitId(), deliverWindow);
     }
 
 }
