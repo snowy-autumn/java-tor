@@ -8,8 +8,8 @@ import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Guard;
 
-import java.util.*;
-import java.util.stream.IntStream;
+import java.util.List;
+import java.util.Random;
 
 public class Directory {
 
@@ -82,29 +82,7 @@ public class Directory {
     }
 
     public boolean fetchMicrodescriptors(MicrodescConsensus microdescConsensus) {
-        ArrayList<RouterMicrodesc> microdescs = microdescConsensus.getMicrodescs();
-        int maxPerMirror = 128;
-        int maxPerRequest = 92;
-        // We sort them in their respective chunks in a descending order, so that we could more easily identify them later on.
-        List<List<RouterMicrodesc>> chunks = IntStream.range(0, (microdescs.size() + maxPerMirror - 1) / maxPerMirror)
-                .mapToObj(i -> microdescs.subList(i * maxPerMirror, Math.min(microdescs.size(), (i + 1) * maxPerMirror))
-                        .stream().sorted((a, b) ->
-                                Arrays.compareUnsigned(Base64.getDecoder().decode(b.getMicrodescHash()), Base64.getDecoder().decode(a.getMicrodescHash())))
-                        .toList()).toList();
-
-        // Todo: Change this to fetch from a few mirrors at once, as it should be.
-        for (List<RouterMicrodesc> chunk : chunks) {
-            if (chunk.size() > maxPerRequest) {
-                List<List<RouterMicrodesc>> temporary = IntStream.range(0, 2).mapToObj(i -> chunk.subList(i * maxPerRequest, Math.min(chunk.size(), (i + 1) * maxPerRequest))).toList();
-                for (List<RouterMicrodesc> sub : temporary)
-                    if (!fetchMicrodescriptors(sub)) return false;
-            }
-            else if (!fetchMicrodescriptors(chunk)) return false;
-        }
-
-        microdescConsensus.postUpdate();
-
-        return true;
+        return microdescConsensus.fetchMicrodescriptors(this);
     }
 
     public void updateCircuit(MicrodescConsensus microdescConsensus) {

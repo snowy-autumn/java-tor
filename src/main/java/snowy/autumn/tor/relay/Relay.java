@@ -19,6 +19,7 @@ public class Relay {
     }
 
     public void initialiseDeliverWindow(int circuitId) {
+        // Todo: Change this from a fixed size of 1000 to whatever is the value of the consensus parameter 'circwindow'.
         this.deliverWindows.put(circuitId, 1000);
     }
 

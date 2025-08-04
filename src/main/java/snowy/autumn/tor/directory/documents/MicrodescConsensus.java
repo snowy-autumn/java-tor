@@ -1,9 +1,11 @@
 package snowy.autumn.tor.directory.documents;
 
+import snowy.autumn.tor.directory.Directory;
 import snowy.autumn.tor.hs.HiddenService;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class MicrodescConsensus {
 
@@ -39,6 +41,31 @@ public class MicrodescConsensus {
 
         postUpdate();
 	}
+
+    public boolean fetchMicrodescriptors(Directory directory) {
+        int maxPerMirror = 128;
+        int maxPerRequest = 92;
+        // We sort them in their respective chunks in a descending order, so that we could more easily identify them later on.
+        List<List<RouterMicrodesc>> chunks = IntStream.range(0, (microdescs.size() + maxPerMirror - 1) / maxPerMirror)
+                .mapToObj(i -> microdescs.subList(i * maxPerMirror, Math.min(microdescs.size(), (i + 1) * maxPerMirror))
+                        .stream().sorted((a, b) ->
+                                Arrays.compareUnsigned(Base64.getDecoder().decode(b.getMicrodescHash()), Base64.getDecoder().decode(a.getMicrodescHash())))
+                        .toList()).toList();
+
+        // Todo: Change this to fetch from a few mirrors at once, as it should be.
+        for (List<RouterMicrodesc> chunk : chunks) {
+            if (chunk.size() > maxPerRequest) {
+                List<List<RouterMicrodesc>> temporary = IntStream.range(0, 2).mapToObj(i -> chunk.subList(i * maxPerRequest, Math.min(chunk.size(), (i + 1) * maxPerRequest))).toList();
+                for (List<RouterMicrodesc> sub : temporary)
+                    if (!directory.fetchMicrodescriptors(sub)) return false;
+            }
+            else if (!directory.fetchMicrodescriptors(chunk)) return false;
+        }
+
+        postUpdate();
+
+        return true;
+    }
 
     public static MicrodescConsensus parse(String consensusData) {
         MicrodescConsensus microdescConsensus = new MicrodescConsensus();
