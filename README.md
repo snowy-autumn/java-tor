@@ -15,6 +15,22 @@ Overall, the system is very rigid at the moment and likely isn't able to handle 
 For example, at the moment, the implementation uses whatever unix time java gives it, instead of using the valid-after time from the consensus. (This is probably not an issue that is likely to occur very often, but it could happen if the system clock is skewed just enough and the client is used just at the right time.) 
 
 ---
+## Usage on Android
+If you're trying to use this implementation on Android, you might have to do these things first:
+1. First of all, add BouncyCastle to your `build.gradle.kts` file.
+```declarative
+implementation("org.bouncycastle:bcprov-jdk15to18:1.81");
+```
+This version of BouncyCastle should work just fine with this implementation.
+2. Then you may need to remove the existing BouncyCastle security provider that is being used by default, since it might not contain the required MessageDigest algorithms, KDF functions, etc..
+```kotlin
+// Remove the existing BouncyCastle security provider.
+Security.removeProvider("BC")
+// Add the current BouncyCastle security provider.
+Security.addProvider(BouncyCastleProvider())
+```
+
+---
 
 Example usage of the very simple client that currently exists (Connecting to a regular target host):
 ```java
@@ -88,3 +104,6 @@ if (!connectionInfo.getConnectionIO().write(<bytes>)) {
 byte[] data = connectionInfo.getConnectionIO().read();
 . . .
 ```
+
+### Third part licenses:
+- Bouncy Castle - MIT License
