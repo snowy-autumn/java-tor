@@ -17,12 +17,12 @@ For example, at the moment, the implementation uses whatever unix time java give
 ---
 ## Usage on Android
 If you're trying to use this implementation on Android, you might have to do these things first:
-1. First of all, add BouncyCastle to your `build.gradle.kts` file.
+1. First of all, add BouncyCastle to your `build.gradle.kts` file:
 ```declarative
 implementation("org.bouncycastle:bcprov-jdk15to18:1.81");
 ```
 This version of BouncyCastle should work just fine with this implementation.
-2. Then you may need to remove the existing BouncyCastle security provider that is being used by default, since it might not contain the required MessageDigest algorithms, KDF functions, etc..
+2. Then you may need to remove the existing BouncyCastle security provider that is being used by default, since it might not contain the required MessageDigest algorithms, KDF functions, etc..:
 ```kotlin
 // Remove the existing BouncyCastle security provider.
 Security.removeProvider("BC")
@@ -105,5 +105,5 @@ byte[] data = connectionInfo.getConnectionIO().read();
 . . .
 ```
 
-### Third part licenses:
+### Third party licenses:
 - Bouncy Castle - MIT License
