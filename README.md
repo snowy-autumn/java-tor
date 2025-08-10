@@ -22,6 +22,7 @@ If you're trying to use this implementation on Android, you might have to do the
 implementation("org.bouncycastle:bcprov-jdk15to18:1.81");
 ```
 This version of BouncyCastle should work just fine with this implementation.
+
 2. Then you may need to remove the existing BouncyCastle security provider that is being used by default, since it might not contain the required MessageDigest algorithms, KDF functions, etc..:
 ```kotlin
 // Remove the existing BouncyCastle security provider.

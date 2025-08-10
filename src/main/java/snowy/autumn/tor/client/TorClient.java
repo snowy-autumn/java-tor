@@ -49,7 +49,7 @@ public class TorClient {
 
 	private static byte[] cacheMicrodesc(RouterMicrodesc microdesc) {
 		byte hasIpv6 = (byte) (microdesc.hasIpv6Address() ? 1 : 0);
-		ByteBuffer buffer = ByteBuffer.allocate(1 + 4 + 2 + 20 + 96 + 1 + (hasIpv6 == 1 ? 18 : 0));
+		ByteBuffer buffer = ByteBuffer.allocate(1 + 4 + 2 + 20 + 96 + 1 + (hasIpv6 == 1 ? 18 : 0) + 2 + microdesc.getFamily().length * 20);
 		// Flags
 		buffer.put(microdesc.getFlags());
 		// Ipv4 host
@@ -77,6 +77,11 @@ public class TorClient {
 			}
 			// port
 			buffer.putShort((short) microdesc.getIpv6port());
+		}
+		// Family
+		buffer.putShort((short) microdesc.getFamily().length);
+		for (byte[] router : microdesc.getFamily()) {
+			buffer.put(router);
 		}
 		return buffer.array();
 	}
@@ -109,8 +114,13 @@ public class TorClient {
 			buffer.get(ipv6host);
 			ipv6port = buffer.getShort();
 		}
+		// parse family
+		byte[][] family = new byte[buffer.getShort()][20];
+		for (int i = 0; i < family.length; i++) {
+			buffer.get(family[i]);
+		}
 
-		return new RouterMicrodesc(flags, ipv4host, ipv4port, fingerprint, ed25519id, ntorOnionKey, microdescHash, ipv6host, ipv6port);
+		return new RouterMicrodesc(flags, ipv4host, ipv4port, fingerprint, ed25519id, ntorOnionKey, microdescHash, ipv6host, ipv6port, family);
 	}
 
 	private byte[] cacheMicrodescs() {

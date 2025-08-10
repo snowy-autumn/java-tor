@@ -42,7 +42,10 @@ public class MicrodescConsensus {
         postUpdate();
 	}
 
-    public boolean fetchMicrodescriptors(Directory directory) {
+    public boolean fetchMicrodescriptors(Directory... directories) {
+        if (directories.length < 1)
+            throw new IllegalArgumentException("At least one directory needs to be passed in order to fetch microdescriptors for a microdesc-consensus.");
+
         int maxPerMirror = 128;
         int maxPerRequest = 92;
         // We sort them in their respective chunks in a descending order, so that we could more easily identify them later on.
@@ -52,8 +55,9 @@ public class MicrodescConsensus {
                                 Arrays.compareUnsigned(Base64.getDecoder().decode(b.getMicrodescHash()), Base64.getDecoder().decode(a.getMicrodescHash())))
                         .toList()).toList();
 
-        // Todo: Change this to fetch from a few mirrors at once, as it should be.
-        for (List<RouterMicrodesc> chunk : chunks) {
+        for (int chunkIndex = 0; chunkIndex < chunks.size(); chunkIndex++) {
+            Directory directory = directories[chunkIndex % directories.length];
+            List<RouterMicrodesc> chunk = chunks.get(chunkIndex);
             if (chunk.size() > maxPerRequest) {
                 List<List<RouterMicrodesc>> temporary = IntStream.range(0, 2).mapToObj(i -> chunk.subList(i * maxPerRequest, Math.min(chunk.size(), (i + 1) * maxPerRequest))).toList();
                 for (List<RouterMicrodesc> sub : temporary)

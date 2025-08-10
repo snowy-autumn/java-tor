@@ -1,5 +1,7 @@
 package snowy.autumn.tor.directory.documents;
 
+import org.bouncycastle.util.encoders.Hex;
+
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.UnknownHostException;
@@ -29,6 +31,7 @@ public class RouterMicrodesc {
     String microdescHash;
     byte[] ntorOnionKey;
     byte[] ed25519Id;
+    byte[][] family = new byte[0][20];
 
     String ipv6host;
     int ipv6port;
@@ -47,7 +50,7 @@ public class RouterMicrodesc {
         setFlags(flags);
     }
 
-	public RouterMicrodesc(byte flags, byte[] host, short port, byte[] fingerprint, byte[] ed25519Id, byte[] ntorOnionKey, byte[] microdescHash, byte[] ipv6host, short ipv6port) {
+	public RouterMicrodesc(byte flags, byte[] host, short port, byte[] fingerprint, byte[] ed25519Id, byte[] ntorOnionKey, byte[] microdescHash, byte[] ipv6host, short ipv6port, byte[][] family) {
 		this.flags = flags;
 		try {
 			this.host = Inet4Address.getByAddress(host).getHostAddress();
@@ -67,6 +70,7 @@ public class RouterMicrodesc {
 			throw new RuntimeException(e);
 		}
 		this.ipv6port = Short.toUnsignedInt(ipv6port);
+        this.family = family;
 	}
 
     private void setFlags(String[] flags) {
@@ -98,6 +102,21 @@ public class RouterMicrodesc {
         int ed25519IdStop = microdesc.indexOf('\n', ed25519IdStart);
         String ed25519Substring = ed25519IdStop == -1 ? microdesc.substring(ed25519IdStart) : microdesc.substring(ed25519IdStart, ed25519IdStop);
         ed25519Id = Base64.getDecoder().decode(ed25519Substring.split(" ")[2]);
+
+        int familyStart = microdesc.indexOf("family ");
+        if (familyStart != -1) {
+            int familyStop = microdesc.indexOf('\n', familyStart);
+            String[] familyList = (familyStop == -1 ? microdesc.substring(familyStart + "family ".length()) : microdesc.substring(familyStart + "family ".length(), familyStop)).split(" ");
+            // Usually we'd want to include router nicknames that are listed, as part of the family, but for now we won't handle this case.
+            // This shouldn't be that big of a problem, since the majority of family entries are rsa identities.
+            familyList = Arrays.stream(familyList).filter(router -> router.startsWith("$")).toList().toArray(new String[0]);
+            family = new byte[familyList.length][20];
+
+            for (int i = 0; i < familyList.length; i++) {
+                family[i] = Hex.decode(familyList[i].substring(1));
+            }
+        }
+
     }
 
     public static byte[] ipv4linkSpecifier(String host, int port) {
@@ -205,4 +224,7 @@ public class RouterMicrodesc {
         return ipv6host != null;
     }
 
+    public byte[][] getFamily() {
+        return family;
+    }
 }
