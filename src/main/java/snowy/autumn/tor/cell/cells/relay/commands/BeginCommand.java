@@ -19,8 +19,8 @@ public class BeginCommand extends RelayCell {
         ByteBuffer buffer = ByteBuffer.allocate(4 + addrport.length);
         // Addrport
         buffer.put(addrport);
-        // Flags. I will not implement them at the moment.
-        buffer.putInt(0);
+        // Flags should be encoded here, and as the spec says ` Whenever 0 would be sent for FLAGS, FLAGS is omitted from the message body. `,
+        // So since I don't support any flags at the moment, we can simply treat them as all zeroes and not send anything at all.
 
         return buffer.array();
     }

@@ -18,6 +18,72 @@ public class RouterMicrodesc {
         public static final byte FAST = (1 << 3);
         public static final byte HS_DIR = (1 << 4);
         public static final byte MIDDLE_ONLY = (1 << 5);
+
+        public static boolean isFlag(byte flags, byte flag) {
+            return (flags & flag) != 0;
+        }
+    }
+
+    public record ExitPolicy(PortRange[] ports, byte addressType, boolean reject) {
+        private record PortRange(int start, int end) {
+            PortRange(int port) {
+                this(port, port);
+            }
+
+            private boolean check(int port) {
+                return port >= start && port <= end;
+            }
+
+        }
+
+        // Address Types
+        public static byte IPv4 = 4;
+        public static byte IPv6 = 6;
+
+        public static ExitPolicy parse(String policy) {
+            String[] parts = policy.trim().split(" ");
+            byte type = parts[0].equalsIgnoreCase("p") ? IPv4 : IPv6;
+            boolean reject = parts[1].equalsIgnoreCase("reject");
+            PortRange[] ports = Arrays.stream(parts[2].split(",")).map(portRange -> {
+                if (portRange.contains("-")) {
+                    String[] range = portRange.split("-");
+                    return new PortRange(Integer.parseInt(range[0]), Integer.parseInt(range[1]));
+                }
+                else return new PortRange(Integer.parseInt(portRange));
+            }).toList().toArray(new PortRange[0]);
+
+            return new ExitPolicy(ports, type, reject);
+        }
+
+        public boolean check(int port) {
+            return Arrays.stream(ports).anyMatch(portRange -> portRange.check(port)) != reject;
+        }
+
+        public byte[] serialise() {
+            ByteBuffer buffer = ByteBuffer.allocate(1 + 1 + 2 + ports.length * 4);
+            buffer.put(addressType);
+            buffer.put((byte) (reject ? 1 : 0));
+            buffer.putShort((short) ports.length);
+            for (PortRange portRange : ports) {
+                buffer.putShort((short) portRange.start());
+                buffer.putShort((short) portRange.end());
+            }
+            return buffer.array();
+        }
+
+        public static ExitPolicy load(byte[] serialised) {
+            ByteBuffer buffer = ByteBuffer.wrap(serialised);
+            byte addressType = buffer.get();
+            boolean reject = buffer.get() == 1;
+            PortRange[] ports = new PortRange[Short.toUnsignedInt(buffer.getShort())];
+            for (int i = 0; i < ports.length; i++) {
+                int start = Short.toUnsignedInt(buffer.getShort());
+                int end = Short.toUnsignedInt(buffer.getShort());
+                ports[i] = new PortRange(start, end);
+            }
+            return new ExitPolicy(ports, addressType, reject);
+        }
+
     }
 
     public static final byte IPv4_LINK_SPECIFIER = 0;
@@ -32,6 +98,7 @@ public class RouterMicrodesc {
     byte[] ntorOnionKey;
     byte[] ed25519Id;
     byte[][] family = new byte[0][20];
+    ExitPolicy ipv4ExitPolicy;
 
     String ipv6host;
     int ipv6port;
@@ -50,7 +117,7 @@ public class RouterMicrodesc {
         setFlags(flags);
     }
 
-	public RouterMicrodesc(byte flags, byte[] host, short port, byte[] fingerprint, byte[] ed25519Id, byte[] ntorOnionKey, byte[] microdescHash, byte[] ipv6host, short ipv6port, byte[][] family) {
+	public RouterMicrodesc(byte flags, byte[] host, short port, byte[] fingerprint, byte[] ed25519Id, byte[] ntorOnionKey, byte[] microdescHash, byte[] ipv6host, short ipv6port, byte[][] family, ExitPolicy ipv4ExitPolicy) {
 		this.flags = flags;
 		try {
 			this.host = Inet4Address.getByAddress(host).getHostAddress();
@@ -71,6 +138,7 @@ public class RouterMicrodesc {
 		}
 		this.ipv6port = Short.toUnsignedInt(ipv6port);
         this.family = family;
+        this.ipv4ExitPolicy = ipv4ExitPolicy;
 	}
 
     private void setFlags(String[] flags) {
@@ -87,7 +155,7 @@ public class RouterMicrodesc {
     }
 
     public boolean isFlag(byte flag) {
-        return (flags & flag) != 0;
+        return Flags.isFlag(flags, flag);
     }
 
 	public byte getFlags() {
@@ -115,6 +183,13 @@ public class RouterMicrodesc {
             for (int i = 0; i < familyList.length; i++) {
                 family[i] = Hex.decode(familyList[i].substring(1));
             }
+        }
+
+        int ipv4ExitPolicyStart = microdesc.indexOf("p ");
+        if (ipv4ExitPolicyStart != -1) {
+            int ipv4ExitPolicyEnd = microdesc.indexOf('\n', ipv4ExitPolicyStart);
+            String policy = ipv4ExitPolicyEnd == -1 ? microdesc.substring(ipv4ExitPolicyStart) : microdesc.substring(ipv4ExitPolicyStart, ipv4ExitPolicyEnd);
+            ipv4ExitPolicy = ExitPolicy.parse(policy);
         }
 
     }
@@ -230,5 +305,9 @@ public class RouterMicrodesc {
 
     public byte[][] getFamily() {
         return family;
+    }
+
+    public ExitPolicy getIpv4ExitPolicy() {
+        return ipv4ExitPolicy;
     }
 }

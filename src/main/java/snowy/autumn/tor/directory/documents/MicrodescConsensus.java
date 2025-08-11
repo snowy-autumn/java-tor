@@ -192,4 +192,8 @@ public class MicrodescConsensus {
         return microdescs.stream().filter(microdesc -> !microdesc.isRelated(routerMicrodesc)).toList();
     }
 
+    public static List<RouterMicrodesc> getAllWithExitPolicy(List<RouterMicrodesc> microdescs, int port) {
+        return microdescs.stream().filter(microdesc -> microdesc.getIpv4ExitPolicy() != null && microdesc.getIpv4ExitPolicy().check(port)).toList();
+    }
+
 }

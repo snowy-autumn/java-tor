@@ -51,7 +51,8 @@ public class TorClient {
 
 	private static byte[] cacheMicrodesc(RouterMicrodesc microdesc) {
 		byte hasIpv6 = (byte) (microdesc.hasIpv6Address() ? 1 : 0);
-		ByteBuffer buffer = ByteBuffer.allocate(1 + 4 + 2 + 20 + 96 + 1 + (hasIpv6 == 1 ? 18 : 0) + 2 + microdesc.getFamily().length * 20);
+		byte[] ipv4ExitPolicy = microdesc.getIpv4ExitPolicy() != null ? microdesc.getIpv4ExitPolicy().serialise() : null;
+		ByteBuffer buffer = ByteBuffer.allocate(1 + 4 + 2 + 20 + 96 + 1 + (hasIpv6 == 1 ? 18 : 0) + 2 + microdesc.getFamily().length * 20 + (ipv4ExitPolicy != null ? 5 + ipv4ExitPolicy.length : 1));
 		// Flags
 		buffer.put(microdesc.getFlags());
 		// Ipv4 host
@@ -85,6 +86,14 @@ public class TorClient {
 		for (byte[] router : microdesc.getFamily()) {
 			buffer.put(router);
 		}
+		// IPv4 exit policy
+		if (ipv4ExitPolicy != null) {
+			buffer.put((byte) 1);
+			buffer.putInt(ipv4ExitPolicy.length);
+			buffer.put(ipv4ExitPolicy);
+		}
+		else buffer.put((byte) 0);
+
 		return buffer.array();
 	}
 
@@ -121,8 +130,15 @@ public class TorClient {
 		for (int i = 0; i < family.length; i++) {
 			buffer.get(family[i]);
 		}
+		// parse ipv4 exit policy
+		RouterMicrodesc.ExitPolicy ipv4ExitPolicy = null;
+		if (buffer.get() == 1) {
+			byte[] ipv4ExitPolicyBytes = new byte[buffer.getInt()];
+			buffer.get(ipv4ExitPolicyBytes);
+			ipv4ExitPolicy = RouterMicrodesc.ExitPolicy.load(ipv4ExitPolicyBytes);
+		}
 
-		return new RouterMicrodesc(flags, ipv4host, ipv4port, fingerprint, ed25519id, ntorOnionKey, microdescHash, ipv6host, ipv6port, family);
+		return new RouterMicrodesc(flags, ipv4host, ipv4port, fingerprint, ed25519id, ntorOnionKey, microdescHash, ipv6host, ipv6port, family, ipv4ExitPolicy);
 	}
 
 	private byte[] cacheMicrodescs() {
@@ -270,7 +286,8 @@ public class TorClient {
 		return destination;
 	}
 
-	private Circuit createCircuit(boolean exitCircuit) {
+	private Circuit createCircuit(int exitPort) {
+		boolean exitCircuit = exitPort != -1;
 		if (!guard.isConnected()) return null;
 		Circuit circuit = new Circuit(random.nextInt(), guard);
 		if (!circuit.create2(guardMicrodesc, Handshakes.NTORv3))
@@ -283,8 +300,10 @@ public class TorClient {
 				middleNode = null;
 		}
 		fastNodes.remove(middleNode);
-		if (exitCircuit)
+		if (exitCircuit) {
 			fastNodes = MicrodescConsensus.getAllWithoutFlag(MicrodescConsensus.getAllWithFlag(fastNodes, RouterMicrodesc.Flags.EXIT), RouterMicrodesc.Flags.BAD_EXIT);
+			fastNodes = MicrodescConsensus.getAllWithExitPolicy(fastNodes, exitPort);
+		}
 		RouterMicrodesc lastNode = null;
 		while (lastNode == null) {
 			lastNode = fastNodes.get(random.nextInt(fastNodes.size()));
@@ -304,7 +323,7 @@ public class TorClient {
 		else {
 			if (!guard.isConnected()) return null;
 			for (int i = 0; i < 3 && circuit == null; i++)
-				circuit = createCircuit(true);
+				circuit = createCircuit(port);
 			if (circuit == null)
 				return null;
 			circuitHashmap.put(uniqueId, circuit);
@@ -323,7 +342,7 @@ public class TorClient {
 		RouterMicrodesc[] possibleFetchDirectories = hiddenService.possibleFetchDirectories().toArray(new RouterMicrodesc[0]);
 		Circuit circuit = null;
 		for (int i = 0; i < 3 && circuit == null; i++)
-			circuit = createCircuit(false);
+			circuit = createCircuit(-1);
 		if (circuit == null)
 			return null;
 		HSDirectory hsDirectory = new HSDirectory(microdescConsensus, possibleFetchDirectories[random.nextInt(possibleFetchDirectories.length)], circuit);
@@ -331,9 +350,9 @@ public class TorClient {
 			return null;
 		HiddenServiceDescriptor hsDescriptor = hsDirectory.fetchHSDescriptor(hiddenService);
 		circuit.destroy(false);
-		Circuit rendezvousCircuit = createCircuit(false);
+		Circuit rendezvousCircuit = createCircuit(-1);
 		for (int i = 0; i < 3 && rendezvousCircuit == null; i++)
-			rendezvousCircuit = createCircuit(false);
+			rendezvousCircuit = createCircuit(-1);
 		if (rendezvousCircuit == null)
 			return null;
 		List<RouterMicrodesc> possibleRendezvousPoints = microdescConsensus.getAllWithFlag(RouterMicrodesc.Flags.FAST);
@@ -351,7 +370,7 @@ public class TorClient {
 
 		for (int i = 0; i < 3 && introductionCircuit == null; i++) {
 			introductionPoint = introductionPoints.get(random.nextInt(introductionPoints.size()));
-			introductionCircuit = createCircuit(false);
+			introductionCircuit = createCircuit(-1);
 		}
 		if (introductionCircuit == null)
 			return null;
