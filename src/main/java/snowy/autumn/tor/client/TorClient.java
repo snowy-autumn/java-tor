@@ -14,14 +14,16 @@ import snowy.autumn.tor.relay.Guard;
 import snowy.autumn.tor.relay.Handshakes;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.Inet6Address;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterInputStream;
 
 public class TorClient {
 
@@ -168,7 +170,9 @@ public class TorClient {
 		buffer.put(microdescs);
 		buffer.put(guardMicrodescBytes);
 		try {
-			Files.write(Path.of(path), buffer.array());
+			DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(new FileOutputStream(path));
+			deflaterOutputStream.write(buffer.array());
+			deflaterOutputStream.close();
 		}
 		catch (IOException e) {
 			throw new RuntimeException(e);
@@ -236,7 +240,9 @@ public class TorClient {
 	public void initialiseCached(String microdescConsensusPath) {
 		byte[] data;
 		try {
-			data = Files.readAllBytes(Path.of(microdescConsensusPath));
+			InflaterInputStream inflaterInputStream = new InflaterInputStream(new FileInputStream(microdescConsensusPath));
+			data = inflaterInputStream.readAllBytes();
+			inflaterInputStream.close();
 		}
 		catch (IOException e) {
 			throw new RuntimeException(e);

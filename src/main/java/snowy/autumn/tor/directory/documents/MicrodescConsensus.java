@@ -188,4 +188,8 @@ public class MicrodescConsensus {
 		return microdescs.stream().filter(microdesc -> !microdesc.isFlag(flag)).toList();
 	}
 
+    public static List<RouterMicrodesc> getAllNonrelated(List<RouterMicrodesc> microdescs, RouterMicrodesc routerMicrodesc) {
+        return microdescs.stream().filter(microdesc -> !microdesc.isRelated(routerMicrodesc)).toList();
+    }
+
 }

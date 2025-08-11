@@ -192,6 +192,10 @@ public class RouterMicrodesc {
         return microdescHash;
     }
 
+    public boolean isRelated(RouterMicrodesc routerMicrodesc) {
+        return Arrays.stream(family).anyMatch(rsaId -> Arrays.equals(rsaId, routerMicrodesc.fingerprint));
+    }
+
     public String getHost() {
         return host;
     }
