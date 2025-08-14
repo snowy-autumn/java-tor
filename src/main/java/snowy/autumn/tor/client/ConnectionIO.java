@@ -47,6 +47,10 @@ public class ConnectionIO {
         }
     }
 
+    public byte getConnected() {
+        return circuit.getConnected();
+    }
+
     public boolean isConnected() {
         return connected;
     }

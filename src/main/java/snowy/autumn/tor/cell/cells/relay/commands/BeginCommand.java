@@ -11,12 +11,12 @@ public class BeginCommand extends RelayCell {
     public BeginCommand(int circuitId, short streamId, String address, int port) {
         super(circuitId, false, BEGIN, streamId);
         // To avoid fingerprinting, the address should be sent in lowercase, but I won't do that here (Just because it's simple to just pass them as lowercase ITFP).
-        this.addrport = (address + ':' + port).getBytes();
+        this.addrport = (address + ':' + port + '\0').getBytes();
     }
 
     @Override
     protected byte[] serialiseRelayBody() {
-        ByteBuffer buffer = ByteBuffer.allocate(4 + addrport.length);
+        ByteBuffer buffer = ByteBuffer.allocate(addrport.length);
         // Addrport
         buffer.put(addrport);
         // Flags should be encoded here, and as the spec says ` Whenever 0 would be sent for FLAGS, FLAGS is omitted from the message body. `,

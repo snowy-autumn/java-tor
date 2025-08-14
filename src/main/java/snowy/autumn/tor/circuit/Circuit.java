@@ -224,18 +224,26 @@ public class Circuit {
         return keys != null || Boolean.TRUE.equals(guard.terminate());
     }
 
+    /**
+     I intend to hopefully replace this Relay("introduction_point, 0) with an actual Relay of the introduction point, after I finish the modifications specified in
+     IntroductionPoint#getSpecificFromLinkSpecifiers(byte[], byte, int)
+     **/
+    @SuppressWarnings("ConstantConditions")
     public boolean extend2(IntroductionPoint introductionPoint) {
         Extend2Command extend2Command = new Extend2Command(circuitId, introductionPoint);
-        return extend2(extend2Command, introductionPoint.ntorOnionKey(), introductionPoint.fingerprint(), introductionPoint.ed25519Id());
+        boolean result = extend2(extend2Command, introductionPoint.ntorOnionKey(), introductionPoint.fingerprint(), introductionPoint.ed25519Id());
+        return result && addRelay(new Relay("introduction_point", 0)) != null;
     }
 
     public boolean extend2(RouterMicrodesc routerMicrodesc) {
         return extend2(routerMicrodesc, routerMicrodesc.getEd25519Id() == null ? Handshakes.NTOR : Handshakes.NTORv3);
     }
 
+    @SuppressWarnings("ConstantConditions")
     public boolean extend2(RouterMicrodesc routerMicrodesc, short handshakeType) {
         Extend2Command extend2Command = new Extend2Command(circuitId, routerMicrodesc, handshakeType);
-        return extend2(extend2Command, routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), routerMicrodesc.getEd25519Id());
+        boolean result = extend2(extend2Command, routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), routerMicrodesc.getEd25519Id());
+        return result && addRelay(new Relay(routerMicrodesc.getHost(), routerMicrodesc.getPort())) != null;
     }
 
     private boolean extend2(Extend2Command extend2Command, byte[] ntorOnionKey, byte[] fingerprint, byte[] ed25519Id) {
@@ -328,7 +336,11 @@ public class Circuit {
         // Levels here start from 0, since you can't truncate zero nodes and so there's no point in starting from 1.
         truncateLock.lock();
         sendRelayCell(new TruncateCommand(circuitId), relayKeys.size() - 2 - level);
-        for (int i = 0; i < level + 1; i++) relayKeys.removeLast();
+
+        for (int i = 0; i < level + 1; i++) {
+            relays.removeLast();
+            relayKeys.removeLast();
+        }
         truncateLock.unlock();
         TruncatedCommand truncatedCommand = waitForRelayCell((short) 0, RelayCell.TRUNCATED);
         return truncatedCommand.getReason() == DestroyCell.DestroyReason.REQUESTED.getReason();

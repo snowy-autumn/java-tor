@@ -31,12 +31,15 @@ public class Guard extends Relay {
     private final ReentrantLock circuitsLock = new ReentrantLock();
     private final HashMap<Integer, Circuit> circuitHashMap = new HashMap<>();
 
+    byte[] fingerprint;
+
     public Guard(RouterMicrodesc routerMicrodesc) {
         this(routerMicrodesc.getHost(), routerMicrodesc.getPort(), routerMicrodesc.getFingerprint());
     }
 
     public Guard(String host, int port, byte[] fingerprint) {
-        super(host, port, fingerprint);
+        super(host, port);
+        this.fingerprint = fingerprint;
     }
 
     protected boolean write(byte[] data) {

@@ -10,12 +10,10 @@ public class Relay {
 
     String host;
     int port;
-    byte[] fingerprint;
 
-    public Relay(String host, int port, byte[] fingerprint) {
+    public Relay(String host, int port) {
         this.host = host;
         this.port = port;
-        this.fingerprint = fingerprint;
     }
 
     public void initialiseDeliverWindow(int circuitId) {
