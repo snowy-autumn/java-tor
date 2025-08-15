@@ -1,6 +1,7 @@
 package snowy.autumn.tor.directory.documents;
 
 import org.bouncycastle.util.encoders.Hex;
+import snowy.autumn.tor.crypto.Cryptography;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -162,7 +163,11 @@ public class RouterMicrodesc {
 		return flags;
 	}
 
-    public void updateFromMicrodesc(String microdesc) {
+    public boolean updateFromMicrodesc(String microdesc) {
+        // Verify that the calculated microdesc hash matches the advertised hash in the microdesc consensus.
+        String calculatedMicrodescHash = Base64.getEncoder().withoutPadding().encodeToString(Cryptography.createDigest("SHA-256").digest(("onion-key\n" + microdesc.trim() + '\n').getBytes()));
+        if (!calculatedMicrodescHash.equals(microdescHash)) return false;
+
         int ntorOnionKeyStart = microdesc.indexOf("ntor-onion-key");
         ntorOnionKey = Base64.getDecoder().decode(microdesc.substring(ntorOnionKeyStart, microdesc.indexOf('\n', ntorOnionKeyStart)).split(" ")[1]);
 
@@ -192,6 +197,7 @@ public class RouterMicrodesc {
             ipv4ExitPolicy = ExitPolicy.parse(policy);
         }
 
+        return true;
     }
 
     public static byte[] ipv4linkSpecifier(String host, int port) {

@@ -75,7 +75,8 @@ public class Directory {
             return false; // Ideally we'd want to be able to identify which one is missing but for now we'll treat it as a failure.
 
         for (int i = 0; i < microdescriptors.length; i++) {
-            microdescs.get(i).updateFromMicrodesc(microdescriptors[i]);
+            if (!microdescs.get(i).updateFromMicrodesc(microdescriptors[i]))
+                throw new RuntimeException("Microdesc hash didn't match for microdesc with advertised microdesc hash `" + microdescs.get(i) + '`');
         }
 
         return true;
