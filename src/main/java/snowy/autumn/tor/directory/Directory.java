@@ -8,10 +8,41 @@ import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Guard;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
 public class Directory {
+
+    public enum Authorities {
+        MORIA1("moria1", "128.31.0.39", 9201),
+        TOR26("tor26", "217.196.147.77", 443),
+        DIZUM("dizum", "45.66.35.11", 443),
+        GABELMOO("gabelmoo", "131.188.40.189", 443),
+        DANNEBENG("dannenberg", "193.23.244.244", 443),
+        MAATUSKA("maatuska", "171.25.193.9", 80),
+        LONGCLAW("longclaw", "199.58.81.140", 443),
+        BASTET("bastet", "204.13.164.118", 443),
+        FARAVAHAR("faravahar", "216.218.219.41", 443);
+
+        private final String name;
+        private final String ipv4;
+        private final int orport;
+
+        Authorities(String name, String ipv4, int orport) {
+            this.name = name;
+            this.ipv4 = ipv4;
+            this.orport = orport;
+        }
+
+        public String getIpv4() {
+            return ipv4;
+        }
+
+        public int getORPort() {
+            return orport;
+        }
+    }
 
     Circuit circuit;
     Random random = new Random();
@@ -60,10 +91,12 @@ public class Directory {
         return null;
     }
 
-    public MicrodescConsensus fetchMicrodescConsensus() {
+    public MicrodescConsensus fetchMicrodescConsensus(DirectoryKeys authDirectoryKeys) {
         if (circuit == null) throw new Error("Cannot fetch any type of consensus when the circuit is null.");
         String consensus = httpRequest("GET /tor/status-vote/current/consensus-microdesc/D586D1+14C131+E8A9C4+ED03BB+0232AF+49015F+EFCBE7+23D15D+27102B HTTP/1.0\r\n\r\n");
-        return microdescConsensus = consensus == null ? null : MicrodescConsensus.parse(consensus);
+        if (consensus == null) return microdescConsensus = null;
+        consensus = Arrays.stream(consensus.replaceAll("\r\n", "\n").split("\n\n")).toList().getLast();
+        return MicrodescConsensus.parse(authDirectoryKeys, consensus);
     }
 
     public boolean fetchMicrodescriptors(List<RouterMicrodesc> microdescs) {

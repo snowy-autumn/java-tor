@@ -1,5 +1,6 @@
 package snowy.autumn.tor.crypto;
 
+import org.bouncycastle.asn1.pkcs.RSAPublicKey;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.digests.SHAKEDigest;
 import org.bouncycastle.crypto.generators.X25519KeyPairGenerator;
@@ -13,9 +14,11 @@ import snowy.autumn.tor.hs.IntroductionPoint;
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.*;
 import java.util.Arrays;
+import java.util.HexFormat;
 
 public class Cryptography {
 
@@ -73,6 +76,24 @@ public class Cryptography {
     public static byte[] updateDigest(MessageDigest digest, byte[] data) {
         digest.update(data);
         return cloneDigest(digest).digest();
+    }
+
+    public static boolean verifyRSASignature(byte[] publicKey, byte[] signature, byte[] hash) {
+        RSAPublicKey rsaPublicKey = RSAPublicKey.getInstance(publicKey);
+        BigInteger signatureInteger = new BigInteger(1, signature);
+        byte[] decoded = signatureInteger.modPow(rsaPublicKey.getPublicExponent(), rsaPublicKey.getModulus()).toByteArray();
+        String hex = HexFormat.of().formatHex(decoded);
+        decoded = HexFormat.of().parseHex("0".repeat((hex.length() % 2 == 1) ? 3 : 2) + hex);
+        int padding = decoded.length - 3 - hash.length;
+        ByteBuffer buffer = ByteBuffer.allocate(2 + padding + 1 + hash.length);
+        buffer.put(new byte[]{0, 1});
+        byte[] paddingBytes = new byte[padding];
+        Arrays.fill(paddingBytes, (byte) -1);
+        buffer.put(paddingBytes);
+        buffer.put((byte) 0);
+        buffer.put(hash);
+
+        return MessageDigest.isEqual(decoded, buffer.array());
     }
 
     public static byte[] ENCAP(byte[] data) {

@@ -2,7 +2,6 @@ package snowy.autumn.tor.client;
 
 import snowy.autumn.tor.cell.cells.relay.commands.IntroduceAckCommand.IntroduceAckStatus;
 import snowy.autumn.tor.circuit.Circuit;
-import snowy.autumn.tor.directory.Directories;
 import snowy.autumn.tor.directory.Directory;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
@@ -214,7 +213,7 @@ public class TorClient {
 		return new MicrodescConsensus(previousSRV, currentSRV, params, routerMicrodescs);
 	}
 
-	public void initialise(Directories.Authorities directoryAuthority) {
+	public void initialise(Directory.Authorities directoryAuthority) {
 		// Create a directory from it.
 		Directory directory = new Directory(directoryAuthority.getIpv4(), directoryAuthority.getORPort());
 		// Prepare a circuit.
@@ -223,7 +222,7 @@ public class TorClient {
 			return;
 		}
 		// Fetch microdescriptor consensus.
-		if ((microdescConsensus = directory.fetchMicrodescConsensus()) == null) {
+		if ((microdescConsensus = directory.fetchMicrodescConsensus(null)) == null) {
 			clientState = FAILED_MICRODESC_CONSENSUS_FETCH;
 			return;
 		}

@@ -1,6 +1,8 @@
 package snowy.autumn.tor.directory.documents;
 
+import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.directory.Directory;
+import snowy.autumn.tor.directory.DirectoryKeys;
 import snowy.autumn.tor.hs.HiddenService;
 
 import java.util.*;
@@ -71,7 +73,37 @@ public class MicrodescConsensus {
         return true;
     }
 
-    public static MicrodescConsensus parse(String consensusData) {
+    private static boolean validate(DirectoryKeys authDirectoryKeys, String consensusData) {
+        String signed = consensusData.substring(0, consensusData.indexOf("\ndirectory-signature ")) + "\ndirectory-signature ";
+        String[] directorySignatures = consensusData.substring(consensusData.indexOf("\ndirectory-signature ") +  + "directory-signature ".length()).trim().split("directory-signature ");
+        byte[] signedHash = null;
+        String algorithm = "";
+        HashSet<DirectoryKeyNetDoc> authoritiesSigned = new HashSet<>();
+        for (String directorySignature : directorySignatures) {
+            String[] signatureIdParts = directorySignature.trim().split(" ");
+            DirectoryKeyNetDoc directoryKeyNetDoc = authDirectoryKeys.getDirectoryKeys(signatureIdParts[1]);
+            if (directoryKeyNetDoc == null) continue;
+            if (!algorithm.equals(algorithm = signatureIdParts[0])) {
+                if (algorithm.equalsIgnoreCase("sha256")) algorithm = "SHA-256";
+                else if (algorithm.equalsIgnoreCase("sha1")) algorithm = "SHA-1";
+                else continue;
+                signedHash = Cryptography.createDigest(algorithm).digest(signed.getBytes());
+            }
+            String[] lines = directorySignature.substring(directorySignature.indexOf('\n') + 1).trim().split("\n");
+            byte[] signature = Base64.getDecoder().decode(String.join("", Arrays.copyOfRange(lines, 1, lines.length - 1)));
+            if (directoryKeyNetDoc.verifyRSASignature(signature, signedHash))
+                authoritiesSigned.add(directoryKeyNetDoc);
+        }
+
+        System.out.println(authoritiesSigned.size() * 2 >= authDirectoryKeys.getDirectoryCount());
+
+        return authoritiesSigned.size() * 2 >= authDirectoryKeys.getDirectoryCount();
+    }
+
+    public static MicrodescConsensus parse(DirectoryKeys authDirectoryKeys, String consensusData) {
+        if (authDirectoryKeys != null && !validate(authDirectoryKeys, consensusData))
+            throw new RuntimeException("Attempted to parse a microdesc consensus, but the consensus was not signed correctly.");
+
         MicrodescConsensus microdescConsensus = new MicrodescConsensus();
 
         int paramsStart = consensusData.indexOf("\nparams ") + 8;
