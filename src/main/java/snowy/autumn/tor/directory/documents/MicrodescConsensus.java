@@ -95,8 +95,6 @@ public class MicrodescConsensus {
                 authoritiesSigned.add(directoryKeyNetDoc);
         }
 
-        System.out.println(authoritiesSigned.size() * 2 >= authDirectoryKeys.getDirectoryCount());
-
         return authoritiesSigned.size() * 2 >= authDirectoryKeys.getDirectoryCount();
     }
 

@@ -3,6 +3,7 @@ package snowy.autumn.tor.client;
 import snowy.autumn.tor.cell.cells.relay.commands.IntroduceAckCommand.IntroduceAckStatus;
 import snowy.autumn.tor.circuit.Circuit;
 import snowy.autumn.tor.directory.Directory;
+import snowy.autumn.tor.directory.DirectoryKeys;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.hs.HSDirectory;
@@ -221,8 +222,10 @@ public class TorClient {
 			clientState = FAILED_INIT_DIRECTORY_CONNECT;
 			return;
 		}
+		// Fetch key certs for all relevant authorities.
+		DirectoryKeys authorityKeys = directory.fetchAuthorityKeys();
 		// Fetch microdescriptor consensus.
-		if ((microdescConsensus = directory.fetchMicrodescConsensus(null)) == null) {
+		if ((microdescConsensus = directory.fetchMicrodescConsensus(authorityKeys)) == null) {
 			clientState = FAILED_MICRODESC_CONSENSUS_FETCH;
 			return;
 		}

@@ -1,38 +1,44 @@
 package snowy.autumn.tor.directory;
 
+import org.bouncycastle.util.encoders.Hex;
 import snowy.autumn.tor.cell.cells.relay.RelayCell;
 import snowy.autumn.tor.cell.cells.relay.commands.DataCommand;
 import snowy.autumn.tor.cell.cells.relay.commands.EndCommand;
 import snowy.autumn.tor.circuit.Circuit;
+import snowy.autumn.tor.directory.documents.DirectoryKeyNetDoc;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Guard;
 
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Random;
 
 public class Directory {
 
     public enum Authorities {
-        MORIA1("moria1", "128.31.0.39", 9201),
-        TOR26("tor26", "217.196.147.77", 443),
-        DIZUM("dizum", "45.66.35.11", 443),
-        GABELMOO("gabelmoo", "131.188.40.189", 443),
-        DANNEBENG("dannenberg", "193.23.244.244", 443),
-        MAATUSKA("maatuska", "171.25.193.9", 80),
-        LONGCLAW("longclaw", "199.58.81.140", 443),
-        BASTET("bastet", "204.13.164.118", 443),
-        FARAVAHAR("faravahar", "216.218.219.41", 443);
+        MORIA1("moria1", "128.31.0.39", 9201, Hex.decode("F533C81CEF0BC0267857C99B2F471ADF249FA232")),
+        TOR26("tor26", "217.196.147.77", 443, Hex.decode("2F3DF9CA0E5D36F2685A2DA67184EB8DCB8CBA8C")),
+        DIZUM("dizum", "45.66.35.11", 443, Hex.decode("E8A9C45EDE6D711294FADF8E7951F4DE6CA56B58")),
+        GABELMOO("gabelmoo", "131.188.40.189", 443, Hex.decode("ED03BB616EB2F60BEC80151114BB25CEF515B226")),
+        DANNEBENG("dannenberg", "193.23.244.244", 443, Hex.decode("0232AF901C31A04EE9848595AF9BB7620D4C5B2E")),
+        MAATUSKA("maatuska", "171.25.193.9", 80, Hex.decode("49015F787433103580E3B66A1707A00E60F2D15B")),
+        LONGCLAW("longclaw", "199.58.81.140", 443, Hex.decode("23D15D965BC35114467363C165C4F724B64B4F66")),
+        BASTET("bastet", "204.13.164.118", 443, Hex.decode("27102BC123E7AF1D4741AE047E160C91ADC76B21")),
+        FARAVAHAR("faravahar", "216.218.219.41", 443, Hex.decode("70849B868D606BAECFB6128C5E3D782029AA394F"));
+        // Note: Another authority exists named 'Serge', but it's a bridge authority, and so it shouldn't be included here, since this implementation does not support bridges at the moment.
 
         private final String name;
         private final String ipv4;
         private final int orport;
+        byte[] fingerprint;
 
-        Authorities(String name, String ipv4, int orport) {
+        Authorities(String name, String ipv4, int orport, byte[] fingerprint) {
             this.name = name;
             this.ipv4 = ipv4;
             this.orport = orport;
+            this.fingerprint = fingerprint;
         }
 
         public String getIpv4() {
@@ -41,6 +47,14 @@ public class Directory {
 
         public int getORPort() {
             return orport;
+        }
+
+        public byte[] getFingerprint() {
+            return fingerprint;
+        }
+
+        public String getName() {
+            return name;
         }
     }
 
@@ -89,6 +103,25 @@ public class Directory {
         if (((EndCommand) relayCell).getReason() == EndCommand.EndReason.REASON_DONE.getReason())
             return response.toString();
         return null;
+    }
+
+    public DirectoryKeyNetDoc fetchDirectoryKeyCertsNetDoc(byte[] fingerprint) {
+        if (circuit == null) throw new Error("Cannot fetch any net-doc when the circuit is null.");
+        String netdoc = httpRequest("GET /tor/keys/fp/" + HexFormat.of().formatHex(fingerprint).toUpperCase() + " HTTP/1.0\r\n\r\n");
+        if (netdoc == null) return null;
+        netdoc = Arrays.stream(netdoc.replaceAll("\r\n", "\n").split("\n\n")).toList().getLast();
+        return DirectoryKeyNetDoc.parse(netdoc, fingerprint);
+    }
+
+    public DirectoryKeys fetchAuthorityKeys() {
+        DirectoryKeyNetDoc[] keys = new DirectoryKeyNetDoc[Authorities.values().length];
+        for (int i = 0; i < keys.length; i++) {
+            Authorities authority = Authorities.values()[i];
+            DirectoryKeyNetDoc authorityKeys = fetchDirectoryKeyCertsNetDoc(authority.getFingerprint());
+            if (authorityKeys == null) throw new RuntimeException("Failed to fetch authority directory key certs for authority '" + authority.getName() + "'.");
+            keys[i] = authorityKeys;
+        }
+        return new DirectoryKeys(keys);
     }
 
     public MicrodescConsensus fetchMicrodescConsensus(DirectoryKeys authDirectoryKeys) {
