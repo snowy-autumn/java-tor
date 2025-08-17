@@ -4,6 +4,7 @@ import snowy.autumn.tor.cell.cells.relay.commands.IntroduceAckCommand.IntroduceA
 import snowy.autumn.tor.circuit.Circuit;
 import snowy.autumn.tor.directory.Directory;
 import snowy.autumn.tor.directory.DirectoryKeys;
+import snowy.autumn.tor.directory.documents.DirectoryKeyNetDoc;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.hs.HSDirectory;
@@ -20,6 +21,8 @@ import java.io.IOException;
 import java.net.Inet6Address;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.DeflaterOutputStream;
@@ -34,6 +37,7 @@ public class TorClient {
 	private static final byte FAILED_MICRODESCS_FETCH = 4;
 	private static final byte NO_VALID_GUARD = 5;
 
+	DirectoryKeys authorityKeys;
 	MicrodescConsensus microdescConsensus;
 	RouterMicrodesc guardMicrodesc = null;
 	Guard guard = null;
@@ -164,6 +168,39 @@ public class TorClient {
 		return routerMicrodescs;
 	}
 
+	private static byte[] serialiseDirectoryKeys(DirectoryKeys directoryKeys) {
+		DirectoryKeyNetDoc[] directoryKeyNetDocs = directoryKeys.getDirectoryKeyNetDocs();
+		ByteArrayOutputStream stream = new ByteArrayOutputStream();
+		stream.write(directoryKeyNetDocs.length);
+		for (DirectoryKeyNetDoc directoryKeyNetDoc : directoryKeyNetDocs) {
+			byte[] signingKey = directoryKeyNetDoc.getDirectorySigningKey();
+			byte[] fingerprint = directoryKeyNetDoc.getFingerprint();
+			long published = directoryKeyNetDoc.getPublished();
+			long expires = directoryKeyNetDoc.getExpires();
+			stream.writeBytes(ByteBuffer.allocate(2).putShort((short) signingKey.length).array());
+			stream.writeBytes(signingKey);
+			stream.writeBytes(fingerprint);
+			stream.writeBytes(ByteBuffer.allocate(8).putLong(published).array());
+			stream.writeBytes(ByteBuffer.allocate(8).putLong(expires).array());
+		}
+		return stream.toByteArray();
+	}
+
+	private static DirectoryKeys parseCachedDirectoryKeys(byte[] cachedDirectoryKeys) {
+		ByteBuffer buffer = ByteBuffer.wrap(cachedDirectoryKeys);
+		DirectoryKeyNetDoc[] authorityKeyNetDocs = new DirectoryKeyNetDoc[buffer.get()];
+		for (int i = 0; i < authorityKeyNetDocs.length; i++) {
+			byte[] signingKey = new byte[buffer.getShort()];
+			buffer.get(signingKey);
+			byte[] fingerprint = new byte[20];
+			buffer.get(fingerprint);
+			long published = buffer.getLong();
+			long expires = buffer.getLong();
+			authorityKeyNetDocs[i] = new DirectoryKeyNetDoc(signingKey, fingerprint, published, expires);
+		}
+		return new DirectoryKeys(authorityKeyNetDocs);
+	}
+
 	public void cacheClientData(String path) {
 		byte[] microdescs = cacheMicrodescs();
 		HashMap<String, Integer> params = microdescConsensus.getParams();
@@ -178,13 +215,20 @@ public class TorClient {
 		}
 		byte[] parameters = stream.toByteArray();
 		byte[] guardMicrodescBytes = cacheMicrodesc(guardMicrodesc);
-		ByteBuffer buffer = ByteBuffer.allocate(microdescs.length + 32 + 32 + parameters.length + 4 + guardMicrodescBytes.length);
+
+		byte[] authorityKeysBytes = serialiseDirectoryKeys(authorityKeys);
+
+		ByteBuffer buffer = ByteBuffer.allocate( 32 + 32 + parameters.length + 4 + microdescs.length + 2 + guardMicrodescBytes.length + 4 + authorityKeysBytes.length);
 		buffer.put(microdescConsensus.getCurrentSRV());
 		buffer.put(microdescConsensus.getPreviousSRV());
 		buffer.put(parameters);
 		buffer.putInt(microdescs.length);
 		buffer.put(microdescs);
+		buffer.putShort((short) guardMicrodescBytes.length);
 		buffer.put(guardMicrodescBytes);
+		buffer.putInt(authorityKeysBytes.length);
+		buffer.put(authorityKeysBytes);
+
 		try {
 			DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(new FileOutputStream(path));
 			deflaterOutputStream.write(buffer.array());
@@ -214,16 +258,63 @@ public class TorClient {
 		return new MicrodescConsensus(previousSRV, currentSRV, params, routerMicrodescs);
 	}
 
+	private boolean readyFromFile(String cachedDataPath) {
+		if (!Files.exists(Path.of(cachedDataPath))) return false;
+		byte[] data;
+		try {
+			InflaterInputStream inflaterInputStream = new InflaterInputStream(new FileInputStream(cachedDataPath));
+			data = inflaterInputStream.readAllBytes();
+			inflaterInputStream.close();
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+		ByteBuffer buffer = ByteBuffer.wrap(data);
+		this.microdescConsensus = parseCachedClientData(buffer);
+		byte[] guardData = new byte[buffer.getShort()];
+		buffer.get(guardData);
+		byte[] authorityKeysBytes = new byte[buffer.getInt()];
+		buffer.get(authorityKeysBytes);
+		authorityKeys = parseCachedDirectoryKeys(authorityKeysBytes);
+
+		guardMicrodesc = parseMicrodesc(ByteBuffer.wrap(guardData));
+
+		return true;
+	}
+
+	public void initialise(String cachedDataPath, Directory.Authorities directoryAuthority) {
+		// Create a directory from it.
+		Directory directory = new Directory(directoryAuthority.getIpv4(), directoryAuthority.getORPort());
+		// Initialise.
+		initialise(cachedDataPath, directory);
+	}
+
+	public void initialise(String cachedDataPath, Directory directory) {
+		readyFromFile(cachedDataPath);
+		if (authorityKeys != null && !authorityKeys.allValid())
+			authorityKeys = null;
+		guardMicrodesc = null;
+		microdescConsensus = null;
+		initialise(directory);
+	}
+
 	public void initialise(Directory.Authorities directoryAuthority) {
 		// Create a directory from it.
 		Directory directory = new Directory(directoryAuthority.getIpv4(), directoryAuthority.getORPort());
+		// Initialise.
+		initialise(directory);
+	}
+
+	public void initialise(Directory directory) {
 		// Prepare a circuit.
 		if (!directory.prepareCircuit()) {
 			clientState = FAILED_INIT_DIRECTORY_CONNECT;
 			return;
 		}
-		// Fetch key certs for all relevant authorities.
-		DirectoryKeys authorityKeys = directory.fetchAuthorityKeys();
+
+		// Fetch authority keys.
+		if (authorityKeys == null)
+			authorityKeys = directory.fetchAuthorityKeys();
 		// Fetch microdescriptor consensus.
 		if ((microdescConsensus = directory.fetchMicrodescConsensus(authorityKeys)) == null) {
 			clientState = FAILED_MICRODESC_CONSENSUS_FETCH;
@@ -255,19 +346,7 @@ public class TorClient {
 		clientState = OK;
 	}
 
-	public void initialiseCached(String microdescConsensusPath) {
-		byte[] data;
-		try {
-			InflaterInputStream inflaterInputStream = new InflaterInputStream(new FileInputStream(microdescConsensusPath));
-			data = inflaterInputStream.readAllBytes();
-			inflaterInputStream.close();
-		}
-		catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-		ByteBuffer buffer = ByteBuffer.wrap(data);
-		this.microdescConsensus = parseCachedClientData(buffer);
-		guardMicrodesc = parseMicrodesc(buffer);
+	private void ready() {
 		this.guard = new Guard(guardMicrodesc);
 		if (!guard.connect())
 			guardMicrodesc = null;
@@ -279,8 +358,13 @@ public class TorClient {
 			clientState = NO_VALID_GUARD;
 			return;
 		}
-		
+
 		clientState = OK;
+	}
+
+	public void initialiseCached(String cachedDataPath) {
+		readyFromFile(cachedDataPath);
+		ready();
 	}
 
 	// This function does nothing at the moment, but I'm hoping to replace it in the future with something that would make sure that all connections to the same IP are made on the same circuit.

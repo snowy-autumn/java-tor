@@ -15,6 +15,8 @@ public class DirectoryKeys {
 
     public DirectoryKeys(DirectoryKeyNetDoc[] directoryKeyCerts) {
         for (DirectoryKeyNetDoc directoryKeyNetDoc : directoryKeyCerts) {
+            // Todo: Instead of doing this, the client should just be able to automatically refetch the authority key certs.
+            if (!directoryKeyNetDoc.isValid()) throw new RuntimeException("Directory key certs for fingerprint '" + HexFormat.of().formatHex(directoryKeyNetDoc.getFingerprint()) + "' are invalid.");
             directoryKeyNetDocHashMap.put(hex(directoryKeyNetDoc.getFingerprint()), directoryKeyNetDoc);
         }
     }
@@ -31,4 +33,11 @@ public class DirectoryKeys {
         return directoryKeyNetDocHashMap.size();
     }
 
+    public DirectoryKeyNetDoc[] getDirectoryKeyNetDocs() {
+        return directoryKeyNetDocHashMap.values().toArray(new DirectoryKeyNetDoc[0]);
+    }
+
+    public boolean allValid() {
+        return directoryKeyNetDocHashMap.values().stream().allMatch(DirectoryKeyNetDoc::isValid);
+    }
 }
