@@ -11,8 +11,10 @@ import snowy.autumn.tor.hs.HSDirectory;
 import snowy.autumn.tor.hs.HiddenService;
 import snowy.autumn.tor.hs.HiddenServiceDescriptor;
 import snowy.autumn.tor.hs.IntroductionPoint;
-import snowy.autumn.tor.relay.Guard;
 import snowy.autumn.tor.relay.Handshakes;
+import snowy.autumn.tor.vanguards.VanguardsGuard;
+import snowy.autumn.tor.vanguards.VanguardsLayer;
+import snowy.autumn.tor.vanguards.VanguardsLite;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
@@ -39,8 +41,7 @@ public class TorClient {
 
 	DirectoryKeys authorityKeys;
 	MicrodescConsensus microdescConsensus;
-	RouterMicrodesc guardMicrodesc = null;
-	Guard guard = null;
+    VanguardsLite vanguardsLite;
 
 	HashMap<String, Circuit> circuitHashmap = new HashMap<>();
 	ReentrantLock circuitLock = new ReentrantLock();
@@ -214,18 +215,23 @@ public class TorClient {
 			stream.writeBytes(buffer.array());
 		}
 		byte[] parameters = stream.toByteArray();
-		byte[] guardMicrodescBytes = cacheMicrodesc(guardMicrodesc);
+        ByteBuffer vanguards = ByteBuffer.allocate(6 * 32);
+        for (VanguardsLayer.Vanguard vanguard : vanguardsLite.getEntryLayer().getVanguards()) {
+            vanguards.put(Base64.getDecoder().decode(vanguard.getRouterMicrodesc().getMicrodescHash()));
+        }
+        for (VanguardsLayer.Vanguard vanguard : vanguardsLite.getSecondLayer().getVanguards()) {
+            vanguards.put(Base64.getDecoder().decode(vanguard.getRouterMicrodesc().getMicrodescHash()));
+        }
 
 		byte[] authorityKeysBytes = serialiseDirectoryKeys(authorityKeys);
 
-		ByteBuffer buffer = ByteBuffer.allocate( 32 + 32 + parameters.length + 4 + microdescs.length + 2 + guardMicrodescBytes.length + 4 + authorityKeysBytes.length);
+		ByteBuffer buffer = ByteBuffer.allocate( 32 + 32 + parameters.length + 4 + microdescs.length + vanguards.capacity() + 4 + authorityKeysBytes.length);
 		buffer.put(microdescConsensus.getCurrentSRV());
 		buffer.put(microdescConsensus.getPreviousSRV());
 		buffer.put(parameters);
 		buffer.putInt(microdescs.length);
 		buffer.put(microdescs);
-		buffer.putShort((short) guardMicrodescBytes.length);
-		buffer.put(guardMicrodescBytes);
+		buffer.put(vanguards.array());
 		buffer.putInt(authorityKeysBytes.length);
 		buffer.put(authorityKeysBytes);
 
@@ -271,13 +277,32 @@ public class TorClient {
 		}
 		ByteBuffer buffer = ByteBuffer.wrap(data);
 		this.microdescConsensus = parseCachedClientData(buffer);
-		byte[] guardData = new byte[buffer.getShort()];
-		buffer.get(guardData);
+		byte[] vanguards = new byte[6 * 32];
+        buffer.get(vanguards);
 		byte[] authorityKeysBytes = new byte[buffer.getInt()];
 		buffer.get(authorityKeysBytes);
 		authorityKeys = parseCachedDirectoryKeys(authorityKeysBytes);
 
-		guardMicrodesc = parseMicrodesc(ByteBuffer.wrap(guardData));
+        ByteBuffer vanguardsBuffer = ByteBuffer.wrap(vanguards);
+        vanguardsLite = new VanguardsLite(microdescConsensus);
+        for (int i = 0; i < 2; i++) {
+            byte[] microdescHash = new byte[32];
+            vanguardsBuffer.get(microdescHash);
+            RouterMicrodesc routerMicrodesc = microdescConsensus.getMicrodescs().stream().filter(microdesc -> Arrays.equals(Base64.getDecoder().decode(microdesc.getMicrodescHash()), microdescHash)).findFirst().orElse(null);
+            if (routerMicrodesc != null)
+                vanguardsLite.getEntryLayer().setVanguard(i, new VanguardsLayer.Vanguard(routerMicrodesc));
+            else vanguardsLite.getEntryLayer().setVanguard(i, null);
+        }
+        for (int i = 0; i < 4; i++) {
+            byte[] microdescHash = new byte[32];
+            vanguardsBuffer.get(microdescHash);
+            RouterMicrodesc routerMicrodesc = microdescConsensus.getMicrodescs().stream().filter(microdesc -> Arrays.equals(Base64.getDecoder().decode(microdesc.getMicrodescHash()), microdescHash)).findFirst().orElse(null);
+            if (routerMicrodesc != null)
+                vanguardsLite.getSecondLayer().setVanguard(i, new VanguardsLayer.Vanguard(routerMicrodesc));
+            else vanguardsLite.getSecondLayer().setVanguard(i, null);
+        }
+
+        vanguardsLite.fixAll();
 
 		return true;
 	}
@@ -293,7 +318,6 @@ public class TorClient {
 		readyFromFile(cachedDataPath);
 		if (authorityKeys != null && !authorityKeys.allValid())
 			authorityKeys = null;
-		guardMicrodesc = null;
 		microdescConsensus = null;
 		initialise(directory);
 	}
@@ -325,40 +349,13 @@ public class TorClient {
 			clientState = FAILED_MICRODESCS_FETCH;
 			return;
 		}
-		// Pick a guard and test it.
-		List<RouterMicrodesc> guardNodes = microdescConsensus.getAllWithFlag(RouterMicrodesc.Flags.GUARD);
-		Random random = new Random();
-		for (int i = 0; i < 3; i++) {
-			RouterMicrodesc microdesc = guardNodes.get(random.nextInt(guardNodes.size()));
-			Guard guard = new Guard(microdesc);
-			if (!guard.connect()) continue;
-			if (!guard.generalTorHandshake()) continue;
-			guard.startCellListener();
-			this.guard = guard;
-			guardMicrodesc = microdesc;
-		}
-		// If no working guard was found, make sure the client state gets updated.
-		if (guardMicrodesc == null) {
-			clientState = NO_VALID_GUARD;
-			return;
-		}
+		// Initialise the vanguards mesh.
+        vanguardsLite = new VanguardsLite(microdescConsensus);
 
 		clientState = OK;
 	}
 
 	private void ready() {
-		this.guard = new Guard(guardMicrodesc);
-		if (!guard.connect())
-			guardMicrodesc = null;
-		else if (!guard.generalTorHandshake())
-			guardMicrodesc = null;
-		guard.startCellListener();
-
-		if (guardMicrodesc == null) {
-			clientState = NO_VALID_GUARD;
-			return;
-		}
-
 		clientState = OK;
 	}
 
@@ -373,10 +370,11 @@ public class TorClient {
 	}
 
 	private Circuit createCircuit(int exitPort) {
+        VanguardsGuard vanguardsGuard = vanguardsLite.getEntryGuard();
 		boolean exitCircuit = exitPort != -1;
-		if (!guard.isConnected()) return null;
-		Circuit circuit = new Circuit(random.nextInt(), guard);
-		if (!circuit.create2(guardMicrodesc, Handshakes.NTORv3))
+		if (!vanguardsGuard.guard().isConnected()) return null;
+		Circuit circuit = new Circuit(random.nextInt(), vanguardsGuard.guard());
+		if (!circuit.create2(vanguardsGuard.guardMicrodesc(), Handshakes.NTORv3))
 			return null;
 		List<RouterMicrodesc> fastNodes = new ArrayList<>(microdescConsensus.getAllWithFlag(RouterMicrodesc.Flags.FAST));
 		RouterMicrodesc middleNode = null;
@@ -404,10 +402,12 @@ public class TorClient {
 			throw new Error("Tried to connect without initialising first.");
 		Circuit circuit = null;
 		String uniqueId = uniqueDestId(host);
+
 		if (circuitHashmap.containsKey(uniqueId))
 			circuit = circuitHashmap.get(uniqueId);
 		else {
-			if (!guard.isConnected()) return null;
+            VanguardsGuard vanguardsGuard = vanguardsLite.getEntryGuard();
+			if (!vanguardsGuard.guard().isConnected()) return null;
 			for (int i = 0; i < 3 && circuit == null; i++)
 				circuit = createCircuit(port);
 			if (circuit == null)

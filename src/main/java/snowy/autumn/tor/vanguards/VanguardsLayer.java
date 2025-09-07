@@ -1,6 +1,5 @@
 package snowy.autumn.tor.vanguards;
 
-import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 
 import java.time.Instant;
@@ -28,18 +27,19 @@ public class VanguardsLayer {
     Random random = new Random();
 
     Vanguard[] vanguards;
-    MicrodescConsensus microdescConsensus;
+    List<RouterMicrodesc> microdescs;
 
-    public VanguardsLayer(MicrodescConsensus microdescConsensus, int size, VanguardsLayer... otherLayers) {
+    public VanguardsLayer(List<RouterMicrodesc> microdescs, int size, VanguardsLayer... otherLayers) {
         this.vanguards = new Vanguard[size];
-        this.microdescConsensus = microdescConsensus;
+        this.microdescs = microdescs;
         for (int i = 0; i < size; i++) {
             rotateVanguard(i, otherLayers);
         }
     }
 
-    public VanguardsLayer(MicrodescConsensus microdescConsensus, Vanguard[] vanguards, VanguardsLayer... otherLayers) {
+    public VanguardsLayer(List<RouterMicrodesc> microdescs, Vanguard[] vanguards, VanguardsLayer... otherLayers) {
         this.vanguards = vanguards;
+        this.microdescs = microdescs;
         for (int i = 0; i < vanguards.length; i++) {
             if (!vanguardExistsInConsensus(i)) {
                 rotateVanguard(i, otherLayers);
@@ -48,19 +48,19 @@ public class VanguardsLayer {
     }
 
     private void rotateVanguard(int index, VanguardsLayer[] vanguardsLayers) {
-        List<RouterMicrodesc> microdescs = microdescConsensus.getMicrodescs().stream()
+        List<RouterMicrodesc> microdescs = this.microdescs.stream()
                 .filter(microdesc ->
-                        Arrays.stream(vanguards).noneMatch(vanguard -> vanguard.getRouterMicrodesc().equals(microdesc)))
+                        Arrays.stream(vanguards).noneMatch(vanguard -> vanguard != null && vanguard.getRouterMicrodesc().equals(microdesc)))
                 .filter(microdesc ->
                         Arrays.stream(vanguardsLayers).noneMatch(vanguardsLayer ->
                                 Arrays.stream(vanguardsLayer.vanguards)
-                                        .anyMatch(vanguard -> vanguard.getRouterMicrodesc().equals(microdesc))))
+                                        .anyMatch(vanguard -> vanguard != null && vanguard.getRouterMicrodesc().equals(microdesc))))
                 .toList();
         vanguards[index] = new Vanguard(microdescs.get(random.nextInt(microdescs.size())));
     }
 
     private boolean vanguardExistsInConsensus(int index) {
-        return microdescConsensus.getMicrodescs().stream().anyMatch(microdesc -> vanguards[index].getRouterMicrodesc().equals(microdesc));
+        return microdescs.stream().anyMatch(microdesc -> vanguards[index].getRouterMicrodesc().equals(microdesc));
     }
 
     public Vanguard getRandom() {
@@ -75,6 +75,22 @@ public class VanguardsLayer {
             }
         }
         return null;
+    }
+
+    public void fixAll(VanguardsLayer... otherLayers) {
+        for (int i = 0; i < vanguards.length; i++) {
+            if (vanguards[i] == null) {
+                rotateVanguard(i, otherLayers);
+            }
+        }
+    }
+
+    public Vanguard[] getVanguards() {
+        return vanguards;
+    }
+
+    public void setVanguard(int index, Vanguard vanguard) {
+        vanguards[index] = vanguard;
     }
 
 }
