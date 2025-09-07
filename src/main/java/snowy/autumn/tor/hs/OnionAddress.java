@@ -67,7 +67,7 @@ public class OnionAddress {
         // Clamps the blinding factor as if it were an Ed25519 private key.
         blindingFactor = Ed25519.clampPrivateKey(blindingFactor);
 
-        // Decompress the onion service's public key as if it into a point on the Edwards25519 curve.
+        // Decompress the onion service's public key into a point on the Edwards25519 curve.
         Ed25519.Point publicKeyPoint = Ed25519.decompress(publicKey);
         // Multiplies the public key point by the blinding factor.
         publicKeyPoint.scalarMultiplication(blindingFactor);

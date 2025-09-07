@@ -316,4 +316,10 @@ public class RouterMicrodesc {
     public ExitPolicy getIpv4ExitPolicy() {
         return ipv4ExitPolicy;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof RouterMicrodesc routerMicrodesc)) return false;
+        return routerMicrodesc.microdescHash.equals(microdescHash);
+    }
 }

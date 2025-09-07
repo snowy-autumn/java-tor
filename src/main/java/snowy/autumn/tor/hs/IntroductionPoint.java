@@ -10,7 +10,7 @@ public record IntroductionPoint(byte[] linkSpecifiers, byte[] ntorOnionKey, byte
         this(linkSpecifiers, ntorOnionKey, authKey, encryptionKey, getSpecificFromLinkSpecifiers(linkSpecifiers, RouterMicrodesc.LEGACY_ID_LINK_SPECIFIER, 20), getSpecificFromLinkSpecifiers(linkSpecifiers, RouterMicrodesc.ED25519_ID_LINK_SPECIFIER, 32));
     }
 
-    // NOTE: This method will be completely overhauled once java 24 becomes more mainstream and the flexible constructor bodies feature gets more widely supported.
+    // NOTE: This method will be completely overhauled once java 25 becomes more mainstream and the flexible constructor bodies feature gets more widely supported.
     private static byte[] getSpecificFromLinkSpecifiers(byte[] linkSpecifiers, byte linkSpecifierType, int linkSpecifierLength) {
         // Parse the link specifiers
         ByteBuffer buffer = ByteBuffer.wrap(linkSpecifiers);
