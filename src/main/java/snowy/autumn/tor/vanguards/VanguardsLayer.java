@@ -11,16 +11,24 @@ public class VanguardsLayer {
 
     public static class Vanguard {
 
-        long selection;
+        long rotate;
         RouterMicrodesc routerMicrodesc;
 
-        public Vanguard(RouterMicrodesc routerMicrodesc) {
-            selection = Instant.now().getEpochSecond();
+        public Vanguard(RouterMicrodesc routerMicrodesc, long rotate) {
             this.routerMicrodesc = routerMicrodesc;
+            this.rotate = rotate;
         }
 
         public RouterMicrodesc getRouterMicrodesc() {
             return routerMicrodesc;
+        }
+
+        public boolean shouldRotate() {
+            return Instant.now().getEpochSecond() >= rotate;
+        }
+
+        public long getRotate() {
+            return rotate;
         }
     }
 
@@ -56,7 +64,8 @@ public class VanguardsLayer {
                                 Arrays.stream(vanguardsLayer.vanguards)
                                         .anyMatch(vanguard -> vanguard != null && vanguard.getRouterMicrodesc().equals(microdesc))))
                 .toList();
-        vanguards[index] = new Vanguard(microdescs.get(random.nextInt(microdescs.size())));
+        // Todo: Replace this temporary random distribution with the correct distribution.
+        vanguards[index] = new Vanguard(microdescs.get(random.nextInt(microdescs.size())), Instant.now().getEpochSecond() + (long) new Random().nextInt(3, 14) * 60 * 60 * 24);
     }
 
     private boolean vanguardExistsInConsensus(int index) {
