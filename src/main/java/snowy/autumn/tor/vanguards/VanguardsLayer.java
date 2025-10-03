@@ -64,7 +64,7 @@ public class VanguardsLayer {
                                 Arrays.stream(vanguardsLayer.vanguards)
                                         .anyMatch(vanguard -> vanguard != null && vanguard.getRouterMicrodesc().equals(microdesc))))
                 .toList();
-        // Todo: Replace this temporary random distribution with the correct distribution.
+        // Todo: Replace this temporary random distribution with the actual relevant distribution.
         vanguards[index] = new Vanguard(microdescs.get(random.nextInt(microdescs.size())), Instant.now().getEpochSecond() + (long) new Random().nextInt(3, 14) * 60 * 60 * 24);
     }
 
@@ -88,7 +88,7 @@ public class VanguardsLayer {
 
     public void fixAll(VanguardsLayer... otherLayers) {
         for (int i = 0; i < vanguards.length; i++) {
-            if (vanguards[i] == null) {
+            if (vanguards[i] == null || vanguards[i].shouldRotate()) {
                 rotateVanguard(i, otherLayers);
             }
         }
