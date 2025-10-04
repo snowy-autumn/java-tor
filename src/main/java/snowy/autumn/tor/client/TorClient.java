@@ -50,9 +50,15 @@ public class TorClient {
 
 	byte clientState = PRE_INIT;
 
-	public TorClient() {
+    Logger logger;
 
+	public TorClient(boolean debug) {
+        logger = new Logger(debug);
 	}
+
+    public TorClient() {
+        this(false);
+    }
 
 	private static byte[] cacheMicrodesc(RouterMicrodesc microdesc) {
 		byte hasIpv6 = (byte) (microdesc.hasIpv6Address() ? 1 : 0);
@@ -279,7 +285,7 @@ public class TorClient {
 		}
 		ByteBuffer buffer = ByteBuffer.wrap(data);
 		this.microdescConsensus = parseCachedClientData(buffer);
-		byte[] vanguards = new byte[6 * 32];
+		byte[] vanguards = new byte[6 * (32 + 8)];
         buffer.get(vanguards);
 		byte[] authorityKeysBytes = new byte[buffer.getInt()];
 		buffer.get(authorityKeysBytes);
@@ -380,7 +386,7 @@ public class TorClient {
 		Circuit circuit = new Circuit(random.nextInt(), vanguardsGuard.guard());
 		if (!circuit.create2(vanguardsGuard.guardMicrodesc(), Handshakes.NTORv3))
 			return null;
-		List<RouterMicrodesc> fastNodes = new ArrayList<>(microdescConsensus.getAllWithFlag(RouterMicrodesc.Flags.FAST));
+		List<RouterMicrodesc> fastNodes = new ArrayList<>(microdescConsensus.getAllWithFlags(RouterMicrodesc.Flags.FAST));
 		RouterMicrodesc middleNode = null;
 		while (middleNode == null) {
 			middleNode = fastNodes.get(random.nextInt(fastNodes.size()));
@@ -389,7 +395,7 @@ public class TorClient {
 		}
 		fastNodes.remove(middleNode);
 		if (exitCircuit) {
-			fastNodes = MicrodescConsensus.getAllWithoutFlag(MicrodescConsensus.getAllWithFlag(fastNodes, RouterMicrodesc.Flags.EXIT), RouterMicrodesc.Flags.BAD_EXIT);
+			fastNodes = MicrodescConsensus.getAllWithoutFlag(MicrodescConsensus.getAllWithFlags(fastNodes, RouterMicrodesc.Flags.EXIT), RouterMicrodesc.Flags.BAD_EXIT);
 			fastNodes = MicrodescConsensus.getAllWithExitPolicy(fastNodes, exitPort);
 		}
 		RouterMicrodesc lastNode = null;
@@ -445,7 +451,7 @@ public class TorClient {
 			rendezvousCircuit = createCircuit(-1);
 		if (rendezvousCircuit == null)
 			return null;
-		List<RouterMicrodesc> possibleRendezvousPoints = microdescConsensus.getAllWithFlag(RouterMicrodesc.Flags.FAST);
+		List<RouterMicrodesc> possibleRendezvousPoints = microdescConsensus.getAllWithFlags(RouterMicrodesc.Flags.FAST);
 		RouterMicrodesc rendezvousPoint = possibleRendezvousPoints.get(random.nextInt(possibleRendezvousPoints.size()));
 		if (!rendezvousCircuit.extend2(rendezvousPoint))
 			return null;

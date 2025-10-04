@@ -206,12 +206,12 @@ public class MicrodescConsensus {
         return hsDirs;
     }
 
-    public List<RouterMicrodesc> getAllWithFlag(byte flag) {
-		return getAllWithFlag(microdescs, flag);
+    public List<RouterMicrodesc> getAllWithFlags(byte... flags) {
+		return getAllWithFlags(microdescs, flags);
     }
 
-	public static List<RouterMicrodesc> getAllWithFlag(List<RouterMicrodesc> microdescs, byte flag) {
-		return microdescs.stream().filter(microdesc -> microdesc.isFlag(flag)).toList();
+	public static List<RouterMicrodesc> getAllWithFlags(List<RouterMicrodesc> microdescs, byte... flags) {
+		return microdescs.stream().filter(microdesc -> microdesc.checkFlags(flags)).toList();
 	}
 
 	public static List<RouterMicrodesc> getAllWithoutFlag(List<RouterMicrodesc> microdescs, byte flag) {

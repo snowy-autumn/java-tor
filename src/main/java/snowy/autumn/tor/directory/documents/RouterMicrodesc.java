@@ -19,6 +19,7 @@ public class RouterMicrodesc {
         public static final byte FAST = (1 << 3);
         public static final byte HS_DIR = (1 << 4);
         public static final byte MIDDLE_ONLY = (1 << 5);
+        public static final byte V2DIR = (1 << 6);
 
         public static boolean isFlag(byte flags, byte flag) {
             return (flags & flag) != 0;
@@ -151,12 +152,19 @@ public class RouterMicrodesc {
                 case "fast" -> this.flags |= Flags.FAST;
                 case "hsdir" -> this.flags |= Flags.HS_DIR;
                 case "middleonly" -> this.flags |= Flags.MIDDLE_ONLY;
+                case "v2dir" -> this.flags |= Flags.V2DIR;
             }
         }
     }
 
     public boolean isFlag(byte flag) {
         return Flags.isFlag(flags, flag);
+    }
+
+    public boolean checkFlags(byte... flags) {
+        for (byte flag : flags)
+            if (!Flags.isFlag(this.flags, flag)) return false;
+        return true;
     }
 
 	public byte getFlags() {

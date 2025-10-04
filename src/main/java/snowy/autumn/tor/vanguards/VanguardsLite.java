@@ -20,7 +20,7 @@ public class VanguardsLite {
     public VanguardsLite(MicrodescConsensus microdescConsensus) {
         this.microdescConsensus = microdescConsensus;
         microdescs = microdescConsensus.getMicrodescs();
-        entryLayer = new VanguardsLayer(microdescConsensus.getAllWithFlag(RouterMicrodesc.Flags.GUARD), 2);
+        entryLayer = new VanguardsLayer(microdescConsensus.getAllWithFlags(RouterMicrodesc.Flags.GUARD), 2);
         entryGuards = Arrays.stream(entryLayer.getVanguards()).map(vanguard -> new VanguardsGuard(new Guard(vanguard.getRouterMicrodesc()), vanguard.getRouterMicrodesc())).toList().toArray(new VanguardsGuard[0]);
         secondLayer = new VanguardsLayer(microdescs, 4, entryLayer);
     }
