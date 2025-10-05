@@ -20,6 +20,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class Guard extends Relay {
 
+    public record GuardInfo(Guard guard, RouterMicrodesc guardMicrodesc) {}
+
     private SSLSocket socket;
     private InputStream inputStream;
     private OutputStream outputStream;

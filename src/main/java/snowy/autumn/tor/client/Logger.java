@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
@@ -34,7 +35,7 @@ public class Logger {
     public void log(String priority, String message) {
         if (!debug) return;
         try {
-            fileOutputStream.write(('[' + priority + "] " + message + '\n').getBytes());
+            fileOutputStream.write(('[' + LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")) + "] [" + priority + "] " + message + '\n').getBytes());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

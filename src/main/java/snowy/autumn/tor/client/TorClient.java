@@ -11,8 +11,8 @@ import snowy.autumn.tor.hs.HSDirectory;
 import snowy.autumn.tor.hs.HiddenService;
 import snowy.autumn.tor.hs.HiddenServiceDescriptor;
 import snowy.autumn.tor.hs.IntroductionPoint;
+import snowy.autumn.tor.relay.Guard;
 import snowy.autumn.tor.relay.Handshakes;
-import snowy.autumn.tor.vanguards.VanguardsGuard;
 import snowy.autumn.tor.vanguards.VanguardsLayer;
 import snowy.autumn.tor.vanguards.VanguardsLite;
 
@@ -380,11 +380,11 @@ public class TorClient {
 	}
 
 	private Circuit createCircuit(int exitPort) {
-        VanguardsGuard vanguardsGuard = vanguardsLite.getEntryGuard();
+        Guard.GuardInfo guardInfo = vanguardsLite.getEntryGuard();
 		boolean exitCircuit = exitPort != -1;
-		if (!vanguardsGuard.guard().isConnected()) return null;
-		Circuit circuit = new Circuit(random.nextInt(), vanguardsGuard.guard());
-		if (!circuit.create2(vanguardsGuard.guardMicrodesc(), Handshakes.NTORv3))
+		if (!guardInfo.guard().isConnected()) return null;
+		Circuit circuit = new Circuit(random.nextInt(), guardInfo.guard());
+		if (!circuit.create2(guardInfo.guardMicrodesc(), Handshakes.NTORv3))
 			return null;
 		List<RouterMicrodesc> fastNodes = new ArrayList<>(microdescConsensus.getAllWithFlags(RouterMicrodesc.Flags.FAST));
 		RouterMicrodesc middleNode = null;
@@ -416,8 +416,8 @@ public class TorClient {
 		if (circuitHashmap.containsKey(uniqueId))
 			circuit = circuitHashmap.get(uniqueId);
 		else {
-            VanguardsGuard vanguardsGuard = vanguardsLite.getEntryGuard();
-			if (!vanguardsGuard.guard().isConnected()) return null;
+            Guard.GuardInfo guardInfo = vanguardsLite.getEntryGuard();
+			if (!guardInfo.guard().isConnected()) return null;
 			for (int i = 0; i < 3 && circuit == null; i++)
 				circuit = createCircuit(port);
 			if (circuit == null)

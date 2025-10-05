@@ -11,7 +11,7 @@ import java.util.Random;
 public class VanguardsLite {
 
     VanguardsLayer entryLayer;
-    VanguardsGuard[] entryGuards;
+    Guard.GuardInfo[] entryGuards;
     VanguardsLayer secondLayer;
     MicrodescConsensus microdescConsensus;
     List<RouterMicrodesc> microdescs;
@@ -21,11 +21,11 @@ public class VanguardsLite {
         this.microdescConsensus = microdescConsensus;
         microdescs = microdescConsensus.getMicrodescs();
         entryLayer = new VanguardsLayer(microdescConsensus.getAllWithFlags(RouterMicrodesc.Flags.GUARD), 2);
-        entryGuards = Arrays.stream(entryLayer.getVanguards()).map(vanguard -> new VanguardsGuard(new Guard(vanguard.getRouterMicrodesc()), vanguard.getRouterMicrodesc())).toList().toArray(new VanguardsGuard[0]);
+        entryGuards = Arrays.stream(entryLayer.getVanguards()).map(vanguard -> new Guard.GuardInfo(new Guard(vanguard.getRouterMicrodesc()), vanguard.getRouterMicrodesc())).toList().toArray(new Guard.GuardInfo[0]);
         secondLayer = new VanguardsLayer(microdescs, 4, entryLayer);
     }
 
-    public VanguardsGuard getEntryGuard() {
+    public Guard.GuardInfo getEntryGuard() {
         int guardIndex = random.nextInt(entryGuards.length);
         Guard guard = entryGuards[guardIndex].guard();
         boolean connected = guard.isConnected();
@@ -40,7 +40,7 @@ public class VanguardsLite {
                 }
                 RouterMicrodesc guardMicrodesc = replaceBadVanguard(entryLayer.getVanguards()[guardIndex].getRouterMicrodesc());
                 guard = new Guard(guardMicrodesc);
-                entryGuards[guardIndex] = new VanguardsGuard(guard, guardMicrodesc);
+                entryGuards[guardIndex] = new Guard.GuardInfo(guard, guardMicrodesc);
             }
             guard.startCellListener();
         }
