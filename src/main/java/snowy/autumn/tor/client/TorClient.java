@@ -222,9 +222,9 @@ public class TorClient {
 		}
 		byte[] parameters = stream.toByteArray();
         ByteBuffer vanguards = ByteBuffer.allocate(6 * (32 + 8));
-        for (VanguardsLayer.Vanguard vanguard : vanguardsLite.getEntryLayer().getVanguards()) {
-            vanguards.put(Base64.getDecoder().decode(vanguard.getRouterMicrodesc().getMicrodescHash()));
-            vanguards.putLong(vanguard.getRotate());
+        for (Guard.GuardInfo guard : vanguardsLite.getGuardSystem().getPrimary()) {
+            vanguards.put(Base64.getDecoder().decode(guard.guardMicrodesc().getMicrodescHash()));
+            vanguards.putLong(0);
         }
         for (VanguardsLayer.Vanguard vanguard : vanguardsLite.getSecondLayer().getVanguards()) {
             vanguards.put(Base64.getDecoder().decode(vanguard.getRouterMicrodesc().getMicrodescHash()));
@@ -293,15 +293,15 @@ public class TorClient {
 
         ByteBuffer vanguardsBuffer = ByteBuffer.wrap(vanguards);
         vanguardsLite = new VanguardsLite(microdescConsensus);
+        ArrayList<RouterMicrodesc> primaryGuards = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             byte[] microdescHash = new byte[32];
             vanguardsBuffer.get(microdescHash);
             long rotate = vanguardsBuffer.getLong();
             RouterMicrodesc routerMicrodesc = microdescConsensus.getMicrodescs().stream().filter(microdesc -> Arrays.equals(Base64.getDecoder().decode(microdesc.getMicrodescHash()), microdescHash)).findFirst().orElse(null);
-            if (routerMicrodesc != null)
-                vanguardsLite.getEntryLayer().setVanguard(i, new VanguardsLayer.Vanguard(routerMicrodesc, rotate));
-            else vanguardsLite.getEntryLayer().setVanguard(i, null);
+            primaryGuards.add(routerMicrodesc);
         }
+        vanguardsLite.getGuardSystem().setPrimary(primaryGuards);
         for (int i = 0; i < 4; i++) {
             byte[] microdescHash = new byte[32];
             vanguardsBuffer.get(microdescHash);

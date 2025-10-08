@@ -1,13 +1,14 @@
 package snowy.autumn.tor.vanguards;
 
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
+import snowy.autumn.tor.relay.RouterMicrodescList;
 
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
-public class VanguardsLayer {
+public class VanguardsLayer implements RouterMicrodescList {
 
     public static class Vanguard {
 
@@ -37,7 +38,7 @@ public class VanguardsLayer {
     Vanguard[] vanguards;
     List<RouterMicrodesc> microdescs;
 
-    public VanguardsLayer(List<RouterMicrodesc> microdescs, int size, VanguardsLayer... otherLayers) {
+    public VanguardsLayer(List<RouterMicrodesc> microdescs, int size, RouterMicrodescList... otherLayers) {
         this.vanguards = new Vanguard[size];
         this.microdescs = microdescs;
         for (int i = 0; i < size; i++) {
@@ -45,7 +46,7 @@ public class VanguardsLayer {
         }
     }
 
-    public VanguardsLayer(List<RouterMicrodesc> microdescs, Vanguard[] vanguards, VanguardsLayer... otherLayers) {
+    public VanguardsLayer(List<RouterMicrodesc> microdescs, Vanguard[] vanguards, RouterMicrodescList... otherLayers) {
         this.vanguards = vanguards;
         this.microdescs = microdescs;
         for (int i = 0; i < vanguards.length; i++) {
@@ -55,14 +56,14 @@ public class VanguardsLayer {
         }
     }
 
-    private void rotateVanguard(int index, VanguardsLayer[] vanguardsLayers) {
+    private void rotateVanguard(int index, RouterMicrodescList[] layers) {
         List<RouterMicrodesc> microdescs = this.microdescs.stream()
                 .filter(microdesc ->
                         Arrays.stream(vanguards).noneMatch(vanguard -> vanguard != null && vanguard.getRouterMicrodesc().equals(microdesc)))
                 .filter(microdesc ->
-                        Arrays.stream(vanguardsLayers).noneMatch(vanguardsLayer ->
-                                Arrays.stream(vanguardsLayer.vanguards)
-                                        .anyMatch(vanguard -> vanguard != null && vanguard.getRouterMicrodesc().equals(microdesc))))
+                        Arrays.stream(layers).noneMatch(layer ->
+                                layer.getMicrodescs().stream()
+                                        .anyMatch(routerMicrodesc -> routerMicrodesc != null && routerMicrodesc.equals(microdesc))))
                 .toList();
         // Todo: Replace this temporary random distribution with the actual relevant distribution.
         vanguards[index] = new Vanguard(microdescs.get(random.nextInt(microdescs.size())), Instant.now().getEpochSecond() + (long) new Random().nextInt(3, 14) * 60 * 60 * 24);
@@ -76,7 +77,7 @@ public class VanguardsLayer {
         return vanguards[random.nextInt(vanguards.length)];
     }
 
-    public Vanguard replaceBadVanguard(RouterMicrodesc routerMicrodesc, VanguardsLayer... otherLayers) {
+    public Vanguard replaceBadVanguard(RouterMicrodesc routerMicrodesc, RouterMicrodescList... otherLayers) {
         for (int i = 0; i < vanguards.length; i++) {
             if (vanguards[i].getRouterMicrodesc().equals(routerMicrodesc)) {
                 rotateVanguard(i, otherLayers);
@@ -86,7 +87,7 @@ public class VanguardsLayer {
         return null;
     }
 
-    public void fixAll(VanguardsLayer... otherLayers) {
+    public void fixAll(RouterMicrodescList... otherLayers) {
         for (int i = 0; i < vanguards.length; i++) {
             if (vanguards[i] == null || vanguards[i].shouldRotate()) {
                 rotateVanguard(i, otherLayers);
@@ -100,6 +101,11 @@ public class VanguardsLayer {
 
     public void setVanguard(int index, Vanguard vanguard) {
         vanguards[index] = vanguard;
+    }
+
+    @Override
+    public List<RouterMicrodesc> getMicrodescs() {
+        return Arrays.stream(vanguards).map(Vanguard::getRouterMicrodesc).toList();
     }
 
 }

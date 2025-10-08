@@ -126,7 +126,7 @@ public class Directory {
 
     public MicrodescConsensus fetchMicrodescConsensus(DirectoryKeys authDirectoryKeys) {
         if (circuit == null) throw new Error("Cannot fetch any type of consensus when the circuit is null.");
-        String consensus = httpRequest("GET /tor/status-vote/current/consensus-microdesc/D586D1+14C131+E8A9C4+ED03BB+0232AF+49015F+EFCBE7+23D15D+27102B HTTP/1.0\r\n\r\n");
+        String consensus = httpRequest("GET /tor/status-vote/current/consensus-microdesc/F533C8+2F3DF9+E8A9C4+ED03BB+0232AF+49015F+23D15D+27102B+70849B HTTP/1.0\r\n\r\n");
         if (consensus == null) return microdescConsensus = null;
         consensus = Arrays.stream(consensus.replaceAll("\r\n", "\n").split("\n\n")).toList().getLast();
         return MicrodescConsensus.parse(authDirectoryKeys, consensus);
