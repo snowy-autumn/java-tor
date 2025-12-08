@@ -51,18 +51,26 @@ public class GuardSystem implements RouterMicrodescList {
     }
     private Guard.GuardInfo promoteNextGuard() {
         Guard.GuardInfo guardInfo = null;
-        for (RouterMicrodesc routerMicrodesc : sampled)
+        for (RouterMicrodesc routerMicrodesc : filtered)
             if ((guardInfo = attemptGuard(routerMicrodesc)) != null) break;
-        if (guardInfo == null) return null;
+        if (guardInfo == null) {
+            for (RouterMicrodesc routerMicrodesc : sampled)
+                if ((guardInfo = attemptGuard(routerMicrodesc)) != null) break;
+            if (guardInfo == null) return null;
+        }
 
         if (primaryFull()) {
             try {
                 guardInfo.guard().terminate();
             }
             catch (Exception ignored) {}
+            sampled.remove(guardInfo.guardMicrodesc());
             filtered.add(guardInfo.guardMicrodesc());
         }
-        else primary.add(guardInfo);
+        else {
+            filtered.remove(guardInfo.guardMicrodesc());
+            primary.add(guardInfo);
+        }
 
         return guardInfo;
     }
@@ -88,11 +96,27 @@ public class GuardSystem implements RouterMicrodescList {
         return primary;
     }
 
+    public void setSampled(ArrayList<RouterMicrodesc> sampled) {
+        this.sampled = sampled;
+    }
+
+    public void setFiltered(ArrayList<RouterMicrodesc> filtered) {
+        this.filtered = filtered;
+    }
+
     public void setPrimary(ArrayList<RouterMicrodesc> primary) {
         for (RouterMicrodesc routerMicrodesc : primary) {
             Guard.GuardInfo guardInfo = attemptGuard(routerMicrodesc);
             this.primary.add(guardInfo);
         }
+    }
+
+    public ArrayList<RouterMicrodesc> getSampled() {
+        return sampled;
+    }
+
+    public ArrayList<RouterMicrodesc> getFiltered() {
+        return filtered;
     }
 
     @Override

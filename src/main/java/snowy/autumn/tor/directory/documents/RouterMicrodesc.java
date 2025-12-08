@@ -289,6 +289,15 @@ public class RouterMicrodesc {
         return host;
     }
 
+    public byte[] getIpv4Host() {
+        ByteBuffer buffer = ByteBuffer.allocate(4);
+        Arrays.stream(host.split("\\."))
+                .forEachOrdered(i -> {
+                    buffer.put((byte) Integer.parseInt(i));
+                });
+        return buffer.array();
+    }
+
     public int getPort() {
         return port;
     }

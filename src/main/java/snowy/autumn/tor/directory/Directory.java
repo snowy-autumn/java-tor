@@ -89,6 +89,10 @@ public class Directory {
     }
 
     protected String httpRequest(String request) {
+        return httpRequest(request, null);
+    }
+
+    protected String httpRequest(String request, MicrodescConsensus microdescConsensus) {
         short streamId = (short) random.nextInt();
         if (!circuit.openDirStream(streamId)) return null;
         circuit.sendData(streamId, request.getBytes());
@@ -99,6 +103,19 @@ public class Directory {
             if (relayCell == null) return null;
             if (relayCell instanceof EndCommand) break;
             response.append(new String(((DataCommand) relayCell).getData()));
+            if (microdescConsensus != null) {
+                String paramsSubstring = response.toString().replaceAll("\r\n", "\n");
+                int index = paramsSubstring.indexOf("\nparams ");
+                int paramsEnd = paramsSubstring.indexOf('\n', index + 1);
+                if (index != -1 && paramsEnd != -1) {
+                    paramsSubstring = paramsSubstring.substring(index, paramsEnd);
+                    MicrodescConsensus.parseMicrodescConsensusParams(paramsSubstring, microdescConsensus);
+                    // Note: This is done in order to prevent the directory from tearing the connection for the reason of protocol violation,
+                    // since the consensus might contain a different minimum send_me version (1) than the default, which is 0.
+                    circuit.updateFromConsensus(microdescConsensus);
+                    microdescConsensus = null;
+                }
+            }
         }
         if (((EndCommand) relayCell).getReason() == EndCommand.EndReason.REASON_DONE.getReason())
             return response.toString();
@@ -126,10 +143,12 @@ public class Directory {
 
     public MicrodescConsensus fetchMicrodescConsensus(DirectoryKeys authDirectoryKeys) {
         if (circuit == null) throw new Error("Cannot fetch any type of consensus when the circuit is null.");
-        String consensus = httpRequest("GET /tor/status-vote/current/consensus-microdesc/F533C8+2F3DF9+E8A9C4+ED03BB+0232AF+49015F+23D15D+27102B+70849B HTTP/1.0\r\n\r\n");
+        MicrodescConsensus microdescConsensus = new MicrodescConsensus();
+        String consensus = httpRequest("GET /tor/status-vote/current/consensus-microdesc/F533C8+2F3DF9+E8A9C4+ED03BB+0232AF+49015F+23D15D+27102B+70849B HTTP/1.0\r\n\r\n", microdescConsensus);
         if (consensus == null) return microdescConsensus = null;
         consensus = Arrays.stream(consensus.replaceAll("\r\n", "\n").split("\n\n")).toList().getLast();
-        return MicrodescConsensus.parse(authDirectoryKeys, consensus);
+        MicrodescConsensus.parse(authDirectoryKeys, consensus, microdescConsensus);
+        return microdescConsensus;
     }
 
     public boolean fetchMicrodescriptors(List<RouterMicrodesc> microdescs) {
@@ -160,4 +179,10 @@ public class Directory {
         return circuit.destroy(true);
     }
 
+    @Override
+    public String toString() {
+        if (directoryMicrodesc != null)
+            return directoryMicrodesc.getHost() + ":" + directoryMicrodesc.getPort();
+        return guard.getHost() + ":" + guard.getPort();
+    }
 }

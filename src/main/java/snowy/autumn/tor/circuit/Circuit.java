@@ -42,7 +42,7 @@ public class Circuit {
     int sendMeVersion = 0;
 
     public <T extends Collection<? extends Relay>> Circuit(int circuitId, T relays, Collection<? extends Keys> relayKeys) {
-        this.circuitId = circuitId | 0x80000000;
+        this.circuitId = getValidCircuitId(circuitId);
         for (Relay relay : relays)
             addRelay(relay);
         this.relayKeys.addAll(relayKeys);
@@ -51,9 +51,13 @@ public class Circuit {
     }
 
     public Circuit(int circuitId, Guard guard) {
-        this.circuitId = circuitId | 0x80000000;
+        this.circuitId = getValidCircuitId(circuitId);
         this.guard = addRelay(guard);
         init();
+    }
+
+    public static int getValidCircuitId(int circuitId) {
+        return circuitId | 0x80000000;
     }
 
     public void updateFromConsensus(MicrodescConsensus microdescConsensus) {
@@ -73,16 +77,17 @@ public class Circuit {
     public void addCell(Cell cell) {
         truncateLock.lock();
         pendingCellsLock.lock();
-        byte[] decryptedDigest = null;
+        byte[] relayCellDigest = null;
         if (cell instanceof RelayCell.EncryptedRelayCell encryptedRelayCell) {
             byte[] encryptedBody = encryptedRelayCell.getEncryptedBody();
             for (Keys keys : relayKeys)
                 encryptedBody = keys.decryptionKey().update(encryptedBody);
-            decryptedDigest = new byte[4];
-            System.arraycopy(encryptedBody, 5, decryptedDigest, 0, decryptedDigest.length);
+            relayCellDigest = new byte[4];
+            System.arraycopy(encryptedBody, 5, relayCellDigest, 0, relayCellDigest.length);
             Arrays.fill(encryptedBody, 5, 9, (byte) 0);
-            byte[] digest = Arrays.copyOf(Cryptography.updateDigest(relayKeys.getLast().digestBackward(), encryptedBody), 4);
-            if (!Arrays.equals(digest, decryptedDigest)) throw new Error("Digests don't match on relay cell: " + Arrays.toString(digest) + " != " + Arrays.toString(decryptedDigest));
+            byte[] digest = Arrays.copyOf(Cryptography.updateDigest(relayKeys.getLast().digestBackward(), encryptedBody), 20);
+            if (!Arrays.equals(digest, 0, 4, relayCellDigest, 0, 4)) throw new Error("Digests don't match on relay cell: " + Arrays.toString(digest) + " != " + Arrays.toString(relayCellDigest));
+            relayCellDigest = digest;
             cell = RelayCell.interpretCommand(circuitId, encryptedBody);
         }
 
@@ -90,8 +95,8 @@ public class Circuit {
             streamsLock.lock();
             Stream stream = streamDataHashMap.get(dataCommand.getStreamId());
             if (stream == null) throw new Error("Invalid stream id: " + dataCommand.getStreamId());
-            stream.received(this, decryptedDigest);
-            relays.getLast().received(this, decryptedDigest);
+            stream.received(this, relayCellDigest);
+            relays.getLast().received(this, relayCellDigest);
             streamsLock.unlock();
         }
         else if (cell instanceof EndCommand endCommand) {
@@ -120,7 +125,7 @@ public class Circuit {
     }
 
     public void handleSendMe(short streamId, byte[] digest) {
-        sendCell(streamId == 0 ? new SendMeCommand(circuitId, streamId, sendMeVersion)
+        sendCell(streamId != 0 ? new SendMeCommand(circuitId, streamId, sendMeVersion)
                 : new SendMeCommand(circuitId, streamId, sendMeVersion, digest));
     }
 

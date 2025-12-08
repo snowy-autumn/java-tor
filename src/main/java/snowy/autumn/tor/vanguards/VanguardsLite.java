@@ -6,7 +6,6 @@ import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Guard;
 
 import java.util.List;
-import java.util.Random;
 
 public class VanguardsLite {
 
@@ -14,7 +13,6 @@ public class VanguardsLite {
     VanguardsLayer secondLayer;
     MicrodescConsensus microdescConsensus;
     List<RouterMicrodesc> microdescs;
-    Random random = new Random();
 
     public VanguardsLite(MicrodescConsensus microdescConsensus) {
         this.microdescConsensus = microdescConsensus;

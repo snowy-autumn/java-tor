@@ -21,7 +21,7 @@ public class SendMeCommand extends RelayCell {
 
     @Override
     protected byte[] serialiseRelayBody() {
-        if (sendMeVersion == 0 || digest == null) return new byte[0];
+        if (sendMeVersion == 0 || digest == null) return new byte[1];
         return ByteBuffer.allocate(1 + 2 + digest.length)
                 .put((byte) sendMeVersion)
                 .putShort((short) digest.length)

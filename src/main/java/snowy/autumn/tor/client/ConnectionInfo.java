@@ -24,4 +24,8 @@ public class ConnectionInfo {
 		return status;
 	}
 
+    public void close() {
+        connectionIO.close();
+    }
+
 }

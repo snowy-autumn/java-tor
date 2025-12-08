@@ -2,6 +2,7 @@ package snowy.autumn.tor.client;
 
 import snowy.autumn.tor.cell.cells.relay.RelayCell;
 import snowy.autumn.tor.cell.cells.relay.commands.DataCommand;
+import snowy.autumn.tor.cell.cells.relay.commands.EndCommand;
 import snowy.autumn.tor.circuit.Circuit;
 
 import java.util.concurrent.locks.ReentrantLock;
@@ -54,4 +55,10 @@ public class ConnectionIO {
     public boolean isConnected() {
         return connected;
     }
+
+    public void close() {
+        connected = false;
+        circuit.sendRelayCell(new EndCommand(circuit.getCircuitId(), streamId, EndCommand.EndReason.REASON_DONE.getReason()));
+    }
+
 }

@@ -98,18 +98,19 @@ public class MicrodescConsensus {
         return authoritiesSigned.size() * 2 >= authDirectoryKeys.getDirectoryCount();
     }
 
-    public static MicrodescConsensus parse(DirectoryKeys authDirectoryKeys, String consensusData) {
-        if (authDirectoryKeys != null && !validate(authDirectoryKeys, consensusData))
-            throw new RuntimeException("Attempted to parse a microdesc consensus, but the consensus was not signed correctly.");
-
-        MicrodescConsensus microdescConsensus = new MicrodescConsensus();
-
-        int paramsStart = consensusData.indexOf("\nparams ") + 8;
-        String params = consensusData.substring(paramsStart, consensusData.indexOf('\n', paramsStart));
+    public static void parseMicrodescConsensusParams(String params, MicrodescConsensus microdescConsensus) {
+        int paramsStart = params.indexOf("\nparams ") + 8;
+        int paramsEnd = params.indexOf('\n', paramsStart);
+        params = params.substring(paramsStart, paramsEnd == -1 ? params.length() : paramsEnd);
 
         for (String param : params.split(" ")) {
             microdescConsensus.params.put(param.split("=")[0], Integer.valueOf(param.split("=")[1]));
         }
+    }
+
+    public static void parse(DirectoryKeys authDirectoryKeys, String consensusData, MicrodescConsensus microdescConsensus) {
+        if (authDirectoryKeys != null && !validate(authDirectoryKeys, consensusData))
+            throw new RuntimeException("Attempted to parse a microdesc consensus, but the consensus was not signed correctly.");
 
         // Parsing the known-flags listing.
         int startKnownFlags = consensusData.indexOf("\nknown-flags ");
@@ -155,8 +156,6 @@ public class MicrodescConsensus {
         }
 
         Collections.shuffle(microdescConsensus.microdescs);
-
-        return microdescConsensus;
     }
 
     public void postUpdate() {
@@ -171,7 +170,12 @@ public class MicrodescConsensus {
     }
 
     public int sendMeEmitMinVersion() {
-        return params.get("sendme_emit_min_version");
+        int minVersion = 0; // The default value, in case the consensus doesn't specify it.
+        if (params.containsKey("sendme_emit_min_version"))
+            minVersion = params.get("sendme_emit_min_version");
+        else if (params.containsKey("sendme_accept_min_version"))
+            minVersion = params.get("sendme_accept_min_version");
+        return minVersion;
     }
 
     public int hsDirNReplicas() {
@@ -210,6 +214,10 @@ public class MicrodescConsensus {
 		return getAllWithFlags(microdescs, flags);
     }
 
+    public RouterMicrodesc findWithHash(byte[] microdescHash) {
+        return microdescs.stream().filter(microdesc -> Arrays.equals(Base64.getDecoder().decode(microdesc.getMicrodescHash()), microdescHash)).findFirst().orElse(null);
+    }
+
 	public static List<RouterMicrodesc> getAllWithFlags(List<RouterMicrodesc> microdescs, byte... flags) {
 		return microdescs.stream().filter(microdesc -> microdesc.checkFlags(flags)).toList();
 	}
@@ -220,6 +228,10 @@ public class MicrodescConsensus {
 
     public static List<RouterMicrodesc> getAllNonrelated(List<RouterMicrodesc> microdescs, RouterMicrodesc routerMicrodesc) {
         return microdescs.stream().filter(microdesc -> !microdesc.isRelated(routerMicrodesc)).toList();
+    }
+
+    public static List<RouterMicrodesc> getAllExcept(List<RouterMicrodesc> microdescs, RouterMicrodesc... routerMicrodescs) {
+        return microdescs.stream().filter(microdesc -> Arrays.stream(routerMicrodescs).noneMatch(routerMicrodesc -> routerMicrodesc.equals(microdesc))).toList();
     }
 
     public static List<RouterMicrodesc> getAllWithExitPolicy(List<RouterMicrodesc> microdescs, int port) {

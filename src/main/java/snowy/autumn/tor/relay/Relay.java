@@ -30,4 +30,11 @@ public class Relay {
         deliverWindows.put(circuit.getCircuitId(), deliverWindow);
     }
 
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
 }
