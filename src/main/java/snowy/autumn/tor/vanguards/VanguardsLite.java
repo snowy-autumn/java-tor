@@ -1,10 +1,12 @@
 package snowy.autumn.tor.vanguards;
 
+import snowy.autumn.tor.circuit.CanExtendTo;
 import snowy.autumn.tor.client.GuardSystem;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Guard;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class VanguardsLite {
@@ -21,8 +23,28 @@ public class VanguardsLite {
         secondLayer = new VanguardsLayer(microdescs, 4, guardSystem);
     }
 
+    public Guard.GuardInfo getEntryGuard(CanExtendTo... existingNodes) {
+        Guard.GuardInfo primaryGuardInfo = null;
+        while (primaryGuardInfo == null) {
+            primaryGuardInfo = guardSystem.getRandomPrimaryGuardInfo();
+            if (existingNodes != null && Arrays.asList(existingNodes).contains(primaryGuardInfo.guardMicrodesc()))
+                primaryGuardInfo = null;
+        }
+        return primaryGuardInfo;
+    }
+
     public Guard.GuardInfo getEntryGuard() {
         return guardSystem.getRandomPrimaryGuardInfo();
+    }
+
+    public RouterMicrodesc getSecondLayerVanguard(CanExtendTo... existingNodes) {
+        RouterMicrodesc secondLayerMicrodesc = null;
+        while (secondLayerMicrodesc == null) {
+            secondLayerMicrodesc = secondLayer.getRandom().getRouterMicrodesc();
+            if (existingNodes != null && Arrays.asList(existingNodes).contains(secondLayerMicrodesc))
+                secondLayerMicrodesc = null;
+        }
+        return secondLayerMicrodesc;
     }
 
     public RouterMicrodesc getSecondLayerVanguard() {

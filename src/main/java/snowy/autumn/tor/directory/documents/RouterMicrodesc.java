@@ -1,6 +1,7 @@
 package snowy.autumn.tor.directory.documents;
 
 import org.bouncycastle.util.encoders.Hex;
+import snowy.autumn.tor.circuit.CanExtendTo;
 import snowy.autumn.tor.crypto.Cryptography;
 
 import java.net.Inet4Address;
@@ -10,7 +11,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Base64;
 
-public class RouterMicrodesc {
+public class RouterMicrodesc implements CanExtendTo {
 
     public static class Flags {
         public static final byte GUARD = 1;
@@ -336,7 +337,7 @@ public class RouterMicrodesc {
 
     @Override
     public boolean equals(Object obj) {
-        if (!(obj instanceof RouterMicrodesc routerMicrodesc)) return false;
-        return routerMicrodesc.microdescHash.equals(microdescHash);
+        if (!(obj instanceof CanExtendTo canExtendTo)) return false;
+        return CanExtendTo.equals(canExtendTo, this);
     }
 }

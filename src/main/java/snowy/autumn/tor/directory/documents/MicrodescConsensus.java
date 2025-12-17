@@ -169,7 +169,7 @@ public class MicrodescConsensus {
         ));
     }
 
-    public int sendMeEmitMinVersion() {
+    public int getSendMeMinVersion() {
         int minVersion = 0; // The default value, in case the consensus doesn't specify it.
         if (params.containsKey("sendme_emit_min_version"))
             minVersion = params.get("sendme_emit_min_version");

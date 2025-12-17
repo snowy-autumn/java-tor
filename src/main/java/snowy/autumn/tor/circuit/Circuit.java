@@ -61,7 +61,7 @@ public class Circuit {
     }
 
     public void updateFromConsensus(MicrodescConsensus microdescConsensus) {
-        sendMeVersion = microdescConsensus.sendMeEmitMinVersion();
+        sendMeVersion = microdescConsensus.getSendMeMinVersion();
     }
 
     private void init() {
@@ -230,7 +230,7 @@ public class Circuit {
     }
 
     /**
-     I intend to hopefully replace this Relay("introduction_point, 0) with an actual Relay of the introduction point, after I finish the modifications specified in
+     I intend to hopefully replace this Relay(introduction_point, 0) with an actual Relay of the introduction point, after I finish the modifications specified in
      IntroductionPoint#getSpecificFromLinkSpecifiers(byte[], byte, int)
      **/
     @SuppressWarnings("ConstantConditions")
@@ -249,6 +249,18 @@ public class Circuit {
         Extend2Command extend2Command = new Extend2Command(circuitId, routerMicrodesc, handshakeType);
         boolean result = extend2(extend2Command, routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getFingerprint(), routerMicrodesc.getEd25519Id());
         return result && addRelay(new Relay(routerMicrodesc.getHost(), routerMicrodesc.getPort())) != null;
+    }
+
+    public boolean extend2(CanExtendTo extendableObject) {
+        if (extendableObject instanceof RouterMicrodesc routerMicrodesc) return extend2(routerMicrodesc, routerMicrodesc.getEd25519Id() == null ? Handshakes.NTOR : Handshakes.NTORv3);
+        else if (extendableObject instanceof IntroductionPoint introductionPoint) return extend2(introductionPoint);
+        else throw new RuntimeException("Got an unknown type of CanExtendTo instance.");
+    }
+
+    public boolean extend2(CanExtendTo extendableObject, short handshakeType) {
+        if (extendableObject instanceof RouterMicrodesc routerMicrodesc) return extend2(routerMicrodesc, handshakeType);
+        else if (extendableObject instanceof IntroductionPoint introductionPoint) return extend2(introductionPoint, handshakeType);
+        else throw new RuntimeException("Got an unknown type of CanExtendTo instance.");
     }
 
     private boolean extend2(Extend2Command extend2Command, byte[] ntorOnionKey, byte[] fingerprint, byte[] ed25519Id) {

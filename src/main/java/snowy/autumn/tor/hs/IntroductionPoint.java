@@ -1,10 +1,11 @@
 package snowy.autumn.tor.hs;
 
+import snowy.autumn.tor.circuit.CanExtendTo;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 
 import java.nio.ByteBuffer;
 
-public record IntroductionPoint(byte[] linkSpecifiers, byte[] ntorOnionKey, byte[] authKey, byte[] encryptionKey, byte[] fingerprint, byte[] ed25519Id) {
+public record IntroductionPoint(byte[] linkSpecifiers, byte[] ntorOnionKey, byte[] authKey, byte[] encryptionKey, byte[] fingerprint, byte[] ed25519Id) implements CanExtendTo {
 
     public IntroductionPoint(byte[] linkSpecifiers, byte[] ntorOnionKey, byte[] authKey, byte[] encryptionKey) {
         this(linkSpecifiers, ntorOnionKey, authKey, encryptionKey, getSpecificFromLinkSpecifiers(linkSpecifiers, RouterMicrodesc.LEGACY_ID_LINK_SPECIFIER, 20), getSpecificFromLinkSpecifiers(linkSpecifiers, RouterMicrodesc.ED25519_ID_LINK_SPECIFIER, 32));
@@ -30,6 +31,12 @@ public record IntroductionPoint(byte[] linkSpecifiers, byte[] ntorOnionKey, byte
         }
 
         return null;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof CanExtendTo canExtendTo)) return false;
+        return CanExtendTo.equals(canExtendTo, this);
     }
 
 }

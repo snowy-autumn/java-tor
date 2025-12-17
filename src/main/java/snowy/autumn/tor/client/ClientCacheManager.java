@@ -343,7 +343,7 @@ public class ClientCacheManager {
                 routerMicrodescs.add(loadRouterMicrodesc(inputStream));
             }
             // Store the microdesc consensus data in clientState.
-            clientState.microdescConsensus = new MicrodescConsensus(currentSRV, previousSRV, parameters, routerMicrodescs);
+            clientState.microdescConsensus = new MicrodescConsensus(previousSRV, currentSRV, parameters, routerMicrodescs);
 
             // Load the serialised VanguardsLite instance.
             // Create a new VanguardsLite instance in clientState.

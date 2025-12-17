@@ -1,11 +1,17 @@
 package snowy.autumn.tor.client;
 
+import snowy.autumn.tor.cell.cells.relay.commands.IntroduceAckCommand;
 import snowy.autumn.tor.directory.Directory;
 import snowy.autumn.tor.directory.DirectoryKeys;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
+import snowy.autumn.tor.hs.HiddenService;
+import snowy.autumn.tor.hs.HiddenServiceDescriptor;
+import snowy.autumn.tor.hs.IntroductionPoint;
 import snowy.autumn.tor.vanguards.VanguardsLite;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Random;
 
 public class TorClient {
 
@@ -104,11 +110,40 @@ public class TorClient {
 
     public ConnectionInfo connect(String host, int port) {
         logger.info("Attempting to connect to " + host + ':' + port + '.');
-        int circuitId = clientState.circuitManager.createConnectionCircuit(port);
+        int circuitId = clientState.circuitManager.createDefaultCircuit(port);
         logger.info("Created a new circuit through the tor network, circuitId: " + circuitId + '.');
         ConnectionInfo connectionInfo = clientState.circuitManager.connectWithCircuit(circuitId, host, port);
         if (connectionInfo == null) logger.info("Failed to establish a connection to " + host + ':' + port + '.');
         else logger.info("Connected to " + host + ':' + port + '.');
+        return connectionInfo;
+    }
+
+    public ConnectionInfo connectHS(String onionAddress, int port) {
+        logger.info("Attempting to fetch the hidden service descriptor for " + onionAddress + '.');
+        HiddenService hiddenService = new HiddenService(clientState.microdescConsensus, onionAddress);
+        HiddenServiceDescriptor hiddenServiceDescriptor = clientState.circuitManager.fetchHSDescriptor(hiddenService);
+
+        ArrayList<IntroductionPoint> introductionPoints = hiddenServiceDescriptor.getIntroductionPoints();
+        IntroductionPoint introductionPoint = introductionPoints.get(new Random().nextInt(introductionPoints.size()));
+
+        CircuitManager.RendezvousInfo rendezvousInfo = clientState.circuitManager.establishRendezvous();
+        logger.info("Created a new rendezvous circuit through the tor network, circuitId: " + rendezvousInfo.circuitId() + '.');
+        logger.info("Established rendezvous on circuit " + rendezvousInfo.circuitId() + '.');
+        IntroduceAckCommand.IntroduceAckStatus introduceAckStatus = clientState.circuitManager.introduce(hiddenService, introductionPoint, rendezvousInfo);
+        logger.info("Introduction status: " + introduceAckStatus);
+        if (introduceAckStatus != IntroduceAckCommand.IntroduceAckStatus.SUCCESS) {
+            logger.info("Failed to finish introduction with hidden service.");
+            clientState.circuitManager.tearCircuit(rendezvousInfo.circuitId());
+            return null;
+        }
+        if (!clientState.circuitManager.finishRendezvous(rendezvousInfo.circuitId(), introductionPoint, introduceAckStatus.getKeyPair())) {
+            logger.info("Failed to finish rendezvous with hidden service.");
+            clientState.circuitManager.tearCircuit(rendezvousInfo.circuitId());
+            return null;
+        }
+        ConnectionInfo connectionInfo = clientState.circuitManager.connectHSWithCircuit(rendezvousInfo.circuitId(), port);
+        if (connectionInfo == null) logger.info("Failed to establish a connection to " + onionAddress + ':' + port + '.');
+        else logger.info("Connected to " + onionAddress + ':' + port + '.');
         return connectionInfo;
     }
 
