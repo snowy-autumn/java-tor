@@ -1,5 +1,6 @@
 package snowy.autumn.tor.directory.documents;
 
+import snowy.autumn.tor.circuit.CanExtendTo;
 import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.directory.Directory;
 import snowy.autumn.tor.directory.DirectoryKeys;
@@ -230,8 +231,8 @@ public class MicrodescConsensus {
         return microdescs.stream().filter(microdesc -> !microdesc.isRelated(routerMicrodesc)).toList();
     }
 
-    public static List<RouterMicrodesc> getAllExcept(List<RouterMicrodesc> microdescs, RouterMicrodesc... routerMicrodescs) {
-        return microdescs.stream().filter(microdesc -> Arrays.stream(routerMicrodescs).noneMatch(routerMicrodesc -> routerMicrodesc.equals(microdesc))).toList();
+    public static List<RouterMicrodesc> getAllExcept(List<RouterMicrodesc> microdescs, CanExtendTo... routerMicrodescs) {
+        return microdescs.stream().filter(microdesc -> Arrays.stream(routerMicrodescs).noneMatch(routerMicrodesc -> routerMicrodesc != null && routerMicrodesc.equals(microdesc))).toList();
     }
 
     public static List<RouterMicrodesc> getAllWithExitPolicy(List<RouterMicrodesc> microdescs, int port) {

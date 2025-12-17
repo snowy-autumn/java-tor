@@ -55,7 +55,7 @@ public class CircuitManager {
         return microdescs.get(random.nextInt(microdescs.size()));
     }
 
-    private RouterMicrodesc getPotentialExit(int port, RouterMicrodesc... usedRouters) {
+    private RouterMicrodesc getPotentialExit(int port, CanExtendTo... usedRouters) {
         List<RouterMicrodesc> microdescs = MicrodescConsensus.getAllExcept(clientState.microdescConsensus.getMicrodescs(), usedRouters);
         if (port != -1) microdescs = MicrodescConsensus.getAllWithExitPolicy(microdescs, port);
         return microdescs.get(random.nextInt(microdescs.size()));
@@ -65,7 +65,7 @@ public class CircuitManager {
         return ((long) circuitId << 16) | streamId;
     }
 
-    public int createDefaultCircuit(int port, CanExtendTo lastNode) {
+    public int createDefaultCircuit(int port, CanExtendTo lastNode, boolean reserve) {
         // Note: If a lastNode is given, then specifying a port would not have an effect on the circuit.
         // Acquire the circuits lock to allow multithreading activity.
         circuitsLock.lock();
@@ -84,11 +84,17 @@ public class CircuitManager {
         boolean extended = circuit.extend2(secondLayerMicrodesc);
         if (!extended) throw new RuntimeException("Unhandled for now circuit extension exception.");
         // If lastNode is null, then we need to find a proper potential exit. If the given port is -1, then this circuit is not an exit circuit.
-        if (lastNode == null)
-            lastNode = getPotentialExit(port, guardInfo.guardMicrodesc(), secondLayerMicrodesc);
+        CanExtendTo thirdNode = lastNode;
+        if (lastNode == null || reserve)
+            thirdNode = getPotentialExit(port, guardInfo.guardMicrodesc(), secondLayerMicrodesc, lastNode);
         // Extend the circuit.
-        extended = circuit.extend2(lastNode);
+        extended = circuit.extend2(thirdNode);
         if (!extended) throw new RuntimeException("Unhandled for now circuit exit extension exception.");
+        if (reserve) {
+            // Extend the circuit.
+            extended = circuit.extend2(lastNode);
+            if (!extended) throw new RuntimeException("Unhandled for now circuit last extension exception.");
+        }
         // Add the circuit to the hashmap.
         circuitHashMap.put(circuitId, circuit);
         // Release the lock.
@@ -97,9 +103,13 @@ public class CircuitManager {
         return circuitId;
     }
 
+    public int createDefaultCircuit(int port, CanExtendTo lastNode) {
+        return createDefaultCircuit(port, lastNode, false);
+    }
+
     public int createDefaultCircuit(int port) {
         // Create a default circuit with an unspecified exit.
-        return createDefaultCircuit(port, null);
+        return createDefaultCircuit(port, null, false);
     }
 
     public ConnectionInfo connectWithCircuit(int circuitId, String host, int port) {
@@ -207,7 +217,7 @@ public class CircuitManager {
 
     public IntroduceAckCommand.IntroduceAckStatus introduce(HiddenService hiddenService, IntroductionPoint introductionPoint, RendezvousInfo rendezvousInfo) {
         // Build a circuit to the introduction point.
-        int circuitId = createDefaultCircuit(-1, introductionPoint);
+        int circuitId = createDefaultCircuit(-1, introductionPoint, true);
         // Acquire the lock.
         circuitsLock.lock();
         // Get the created circuit from the hashmap.
