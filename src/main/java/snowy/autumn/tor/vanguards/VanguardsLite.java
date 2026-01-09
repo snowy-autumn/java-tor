@@ -60,7 +60,6 @@ public class VanguardsLite {
     }
 
     public void fixAll() {
-        guardSystem.fixAll();
         secondLayer.fixAll(guardSystem);
     }
 

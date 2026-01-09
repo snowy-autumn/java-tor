@@ -3,12 +3,10 @@ package snowy.autumn.tor.hs;
 import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
+import snowy.autumn.tor.utils.Utils;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -48,12 +46,8 @@ public class HiddenService {
         return 1440;
     }
 
-    public static ZonedDateTime getCurrentTime() {
-        return Instant.now().atZone(ZoneOffset.UTC);
-    }
-
     public static long getCurrentTimePeriod() {
-        long unixTimeInMinutes = getCurrentTime().toEpochSecond() / 60;
+        long unixTimeInMinutes = Utils.getCurrentTime().toEpochSecond() / 60;
         unixTimeInMinutes -= 12 * 60;
         unixTimeInMinutes /= getPeriodLength();
         return unixTimeInMinutes;

@@ -4,6 +4,7 @@ import snowy.autumn.tor.cell.cells.relay.commands.IntroduceAckCommand;
 import snowy.autumn.tor.directory.Directory;
 import snowy.autumn.tor.directory.DirectoryKeys;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
+import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.hs.HiddenService;
 import snowy.autumn.tor.hs.HiddenServiceDescriptor;
 import snowy.autumn.tor.hs.IntroductionPoint;
@@ -11,6 +12,7 @@ import snowy.autumn.tor.vanguards.VanguardsLite;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 public class TorClient {
@@ -20,6 +22,7 @@ public class TorClient {
         public MicrodescConsensus microdescConsensus;
         public VanguardsLite vanguardsLite;
         public CircuitManager circuitManager;
+        public Random random;
 
         public ClientState(DirectoryKeys authorityKeys, MicrodescConsensus microdescConsensus, VanguardsLite vanguardsLite) {
             this();
@@ -29,6 +32,7 @@ public class TorClient {
         }
 
         public ClientState() {
+            this.random = new Random();
             this.circuitManager = new CircuitManager(this);
         }
 
@@ -41,7 +45,7 @@ public class TorClient {
 
     public TorClient(String cacheFilePath, boolean debug) {
         logger = new Logger(debug);
-        cacheManager = new ClientCacheManager(Path.of(cacheFilePath), logger);
+        cacheManager = new ClientCacheManager(cacheFilePath == null ? null : Path.of(cacheFilePath), logger);
         clientState = new ClientState();
     }
 
@@ -59,6 +63,37 @@ public class TorClient {
         logger.info("Authority keys fetched.");
     }
 
+    private boolean fetchMicrodescConsensus(Directory directory) {
+        // Prepare the directory circuit.
+        if (!directory.prepareCircuit()) {
+            logger.error("Failed to connect to directory " + directory + ".");
+            return false;
+        }
+        logger.info("Connected to directory " + directory + ".");
+
+        // Handle the authority keys to make sure we've got everything we need before we fetch a consensus.
+        handleAuthorityKeys(directory);
+
+        // Attempt to fetch a microdesc consensus.
+        logger.info("Attempting to fetch a microdesc consensus from " + directory + ".");
+        clientState.microdescConsensus = directory.fetchMicrodescConsensus(clientState.authorityKeys);
+        if (clientState.microdescConsensus == null) {
+            logger.error("Failed to fetch microdesc consensus.");
+            return false;
+        }
+        logger.info("Fetched microdesc consensus.");
+
+        // Attempt to fetch all microdescriptors that are listed on the microdesc consensus.
+        logger.info("Attempting to fetch all microdescriptors from directory " + directory + ".");
+        if (!directory.fetchMicrodescriptors(clientState.microdescConsensus)) {
+            logger.error("Failed to fetch all microdescriptors.");
+            return false;
+        }
+
+        logger.info("Microdescriptors fetched successfully.");
+        return true;
+    }
+
     public void initClient(Directory directory) {
         // Initialise the cache manager.
         byte cacheManagerStatus = cacheManager.init();
@@ -66,37 +101,44 @@ public class TorClient {
         else if (cacheManagerStatus == ClientCacheManager.CACHE_FOUND) {
             // Attempt to load the client's data from the cache file.
             // If the client was not able to load its data from the cache file, then we should terminate the client's init process.
-            if (!cacheManager.loadClientData(clientState))
+            if (!cacheManager.loadClientData(clientState)) {
+                logger.error("Failed to load cached client data. You could try deleting the file and let the client create a new one.");
                 return;
+            }
+            // If the consensus is no longer valid, then we need to fetch a new one.
+            if (!clientState.microdescConsensus.isValid()) {
+                logger.info("Consensus is no longer valid. Attempting to refetch.");
+                List<RouterMicrodesc> potentialDirectories = clientState.microdescConsensus.getAllWithFlags(RouterMicrodesc.Flags.V2DIR);
+                boolean fetched = false;
+                for (int i = 0; i < 3; i++) {
+                    RouterMicrodesc dirMicrodesc = potentialDirectories.get(clientState.random.nextInt(potentialDirectories.size()));
+                    logger.info("Attempting to build a circuit to directory " + dirMicrodesc.getHost() + ":" + dirMicrodesc.getPort() + ".");
+                    Directory directoryPreference = clientState.circuitManager.createDirectoryCircuit(dirMicrodesc);
+                    if (!(fetched = fetchMicrodescConsensus(directoryPreference)))
+                        logger.info("Failed to fetch a microdesc consensus from " + directoryPreference + ". Retrying.");
+                    else break;
+                }
+                if (!fetched) {
+                    logger.info("Failed to fetch from random directories. Defaulting to fallback " + directory + ".");
+                    fetched = fetchMicrodescConsensus(directory);
+                }
+                if (!fetched) {
+                    logger.error("Failed to fetch microdesc consensus. Terminating client.");
+                    return;
+                }
+                // Storing the new microdesc consensus.
+                cacheManager.storeClientData(clientState.authorityKeys, clientState.microdescConsensus, clientState.vanguardsLite);
+                // Reloading all client data.
+                if (!cacheManager.loadClientData(clientState)) {
+                    logger.error("Failed to load the new microdesc consensus from file. Try rerunning the client.");
+                    return;
+                }
+            }
         }
         else if (cacheManagerStatus == ClientCacheManager.NEW_CACHE || cacheManagerStatus == ClientCacheManager.EPHEMERAL_MODE) {
-            // Prepare the directory circuit.
-            if (!directory.prepareCircuit()) {
-                logger.error("Failed to connect to directory " + directory + ".");
-                return;
-            }
-            logger.info("Connected to directory " + directory + ".");
-
-            // Handle the authority keys to make sure we've got everything we need before we fetch a consensus.
-            handleAuthorityKeys(directory);
-
             // Attempt to fetch a microdesc consensus.
-            logger.info("Attempting to fetch a microdesc consensus from " + directory + ".");
-            clientState.microdescConsensus = directory.fetchMicrodescConsensus(clientState.authorityKeys);
-            if (clientState.microdescConsensus == null) {
-                logger.error("Failed to fetch microdesc consensus.");
+            if (!fetchMicrodescConsensus(directory))
                 return;
-            }
-            logger.info("Fetched microdesc consensus.");
-
-            // Attempt to fetch all microdescriptors that are listed on the microdesc consensus.
-            logger.info("Attempting to fetch all microdescriptors from directory " + directory + ".");
-            if (!directory.fetchMicrodescriptors(clientState.microdescConsensus)) {
-                logger.error("Failed to fetch all microdescriptors.");
-                return;
-            }
-            logger.info("Microdescriptors fetched successfully.");
-
             // Initialise the vanguards-lite system (that includes the regular guards system).
             logger.info("Initialising Vanguards and Entry Guards.");
             clientState.vanguardsLite = new VanguardsLite(clientState.microdescConsensus);
@@ -124,7 +166,7 @@ public class TorClient {
         HiddenServiceDescriptor hiddenServiceDescriptor = clientState.circuitManager.fetchHSDescriptor(hiddenService);
 
         ArrayList<IntroductionPoint> introductionPoints = hiddenServiceDescriptor.getIntroductionPoints();
-        IntroductionPoint introductionPoint = introductionPoints.get(new Random().nextInt(introductionPoints.size()));
+        IntroductionPoint introductionPoint = introductionPoints.get(clientState.random.nextInt(introductionPoints.size()));
 
         CircuitManager.RendezvousInfo rendezvousInfo = clientState.circuitManager.establishRendezvous();
         logger.info("Created a new rendezvous circuit through the tor network, circuitId: " + rendezvousInfo.circuitId() + '.');

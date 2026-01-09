@@ -81,6 +81,7 @@ public class Directory {
     }
 
     public boolean prepareCircuit() {
+        if (guard == null) return true; // This is true since this only happens when the directory instance has been initialised with a circuit directly.
         if (!guard.connect()) return false;
         if (!guard.generalTorHandshake()) return false;
         guard.startCellListener();

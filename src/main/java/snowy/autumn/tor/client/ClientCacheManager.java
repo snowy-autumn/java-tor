@@ -36,7 +36,6 @@ public class ClientCacheManager {
         public CacheFileOutputStream(Path path) throws FileNotFoundException {
             // Clear the cache file.
             super(new FileOutputStream(path.toFile(), false));
-
         }
 
         public void writeShortString(String value) throws IOException {
@@ -211,6 +210,8 @@ public class ClientCacheManager {
     }
 
     public void storeClientData(DirectoryKeys authorityKeys, MicrodescConsensus microdescConsensus, VanguardsLite vanguardsLite) {
+        // If the cache file has not been initialised, then the client is probably in ephemeral mode.
+        if (cacheFilePath == null) return;
         try {
             // Create an output stream and clear the cache file.
             CacheFileOutputStream outputStream = new CacheFileOutputStream(cacheFilePath);
@@ -232,6 +233,10 @@ public class ClientCacheManager {
             }
 
             // Serialise the microdesc consensus.
+            // Store the valid-after, fresh-until and valid-until values listed in the consensus.
+            outputStream.writeLong(microdescConsensus.getValidAfter());
+            outputStream.writeLong(microdescConsensus.getFreshUntil());
+            outputStream.writeLong(microdescConsensus.getValidUntil());
             // Store the shared random values listed in the consensus.
             outputStream.write(microdescConsensus.getCurrentSRV());
             outputStream.write(microdescConsensus.getPreviousSRV());
@@ -318,6 +323,10 @@ public class ClientCacheManager {
             clientState.authorityKeys = new DirectoryKeys(directoryKeyNetDocs);
 
             // Load the microdesc consensus.
+            // Read the valid-after, fresh-until and valid-until values of the consensus.
+            long validAfter = inputStream.readLong();
+            long freshUntil = inputStream.readLong();
+            long validUntil = inputStream.readLong();
             // Read the shared random values.
             byte[] currentSRV = inputStream.readNBytes(32);
             byte[] previousSRV = inputStream.readNBytes(32);
@@ -343,7 +352,7 @@ public class ClientCacheManager {
                 routerMicrodescs.add(loadRouterMicrodesc(inputStream));
             }
             // Store the microdesc consensus data in clientState.
-            clientState.microdescConsensus = new MicrodescConsensus(previousSRV, currentSRV, parameters, routerMicrodescs);
+            clientState.microdescConsensus = new MicrodescConsensus(validAfter, freshUntil, validUntil, previousSRV, currentSRV, parameters, routerMicrodescs);
 
             // Load the serialised VanguardsLite instance.
             // Create a new VanguardsLite instance in clientState.
@@ -357,12 +366,8 @@ public class ClientCacheManager {
                 byte[] microdescHash = inputStream.readNBytes(32);
                 // Find the relay in the microdesc consensus.
                 RouterMicrodesc sampledRelay = clientState.microdescConsensus.findWithHash(microdescHash);
+                // If the sampled relay is null, we should skip it and let the system pick another one to promote.
                 if (sampledRelay != null) sampled.add(sampledRelay);
-                else {
-                    // This should never happen, as the client does not currently update its consensus mid-run.
-                    logger.error("Mismatched microdesc consensus and stored relay.");
-                    return false;
-                }
             }
             // Set the sampled relays for the client to the ones we just loaded.
             clientState.vanguardsLite.getGuardSystem().setSampled(sampled);
@@ -374,12 +379,8 @@ public class ClientCacheManager {
                 byte[] microdescHash = inputStream.readNBytes(32);
                 // Find the relay in the microdesc consensus.
                 RouterMicrodesc filteredRelay = clientState.microdescConsensus.findWithHash(microdescHash);
+                // If the filtered relay is null, we should skip it and let the system pick another one to promote.
                 if (filteredRelay != null) filtered.add(filteredRelay);
-                else {
-                    // This should never happen, as the client does not currently update its consensus mid-run.
-                    logger.error("Mismatched microdesc consensus and stored relay.");
-                    return false;
-                }
             }
             // Set the filtered relays for the client to the ones we just loaded.
             clientState.vanguardsLite.getGuardSystem().setFiltered(filtered);
@@ -393,12 +394,8 @@ public class ClientCacheManager {
                 long rotate = inputStream.readLong();
                 // Find the relay in the microdesc consensus.
                 RouterMicrodesc primaryGuard = clientState.microdescConsensus.findWithHash(microdescHash);
+                // If the primary guard is null, we should skip it and let the system pick another one to promote.
                 if (primaryGuard != null) primary.add(primaryGuard);
-                else {
-                    // This should never happen, as the client does not currently update its consensus mid-run.
-                    logger.error("Mismatched microdesc consensus and stored guard.");
-                    return false;
-                }
             }
             // Set the primary guards for the client to the ones we just loaded.
             clientState.vanguardsLite.getGuardSystem().setPrimary(primary);
@@ -416,6 +413,8 @@ public class ClientCacheManager {
                 // Update the vanguard at the current index in the second layer.
                 clientState.vanguardsLite.getSecondLayer().setVanguard(i, vanguard);
             }
+            // Make sure that we don't just lose routers when they get unlisted without replacing them.
+            clientState.vanguardsLite.getGuardSystem().initSampled();
 
             // Finally, close the cache file input stream.
             inputStream.close();

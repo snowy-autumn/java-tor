@@ -4,6 +4,7 @@ import snowy.autumn.tor.cell.cells.relay.commands.IntroduceAckCommand;
 import snowy.autumn.tor.circuit.CanExtendTo;
 import snowy.autumn.tor.circuit.Circuit;
 import snowy.autumn.tor.crypto.KeyPair;
+import snowy.autumn.tor.directory.Directory;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.hs.HSDirectory;
@@ -69,34 +70,43 @@ public class CircuitManager {
         // Note: If a lastNode is given, then specifying a port would not have an effect on the circuit.
         // Acquire the circuits lock to allow multithreading activity.
         circuitsLock.lock();
-        // Generate a new random circuit id.
-        int circuitId = getUnusedCircuitId();
-        // Get a random primary guard.
-        Guard.GuardInfo guardInfo = clientState.vanguardsLite.getEntryGuard(lastNode);
-        // Create a new circuit using that guard.
-        Circuit circuit = new Circuit(circuitId, guardInfo.guard());
-        // Attempt to initialise the circuit with an NTORv3 handshake.
-        boolean created = circuit.create2(guardInfo.guardMicrodesc(), Handshakes.NTORv3);
-        if (!created) throw new RuntimeException("Unhandled for now circuit creation exception.");
-        // Get a new second layer vanguard router microdesc.
-        RouterMicrodesc secondLayerMicrodesc = clientState.vanguardsLite.getSecondLayerVanguard(lastNode);
-        // Extend the circuit.
-        boolean extended = circuit.extend2(secondLayerMicrodesc);
-        if (!extended) throw new RuntimeException("Unhandled for now circuit extension exception.");
-        // If lastNode is null, then we need to find a proper potential exit. If the given port is -1, then this circuit is not an exit circuit.
-        CanExtendTo thirdNode = lastNode;
-        if (lastNode == null || reserve)
-            thirdNode = getPotentialExit(port, guardInfo.guardMicrodesc(), secondLayerMicrodesc, lastNode);
-        // Extend the circuit.
-        extended = circuit.extend2(thirdNode);
-        if (!extended) throw new RuntimeException("Unhandled for now circuit exit extension exception.");
-        if (reserve) {
+        // Create a variable to hold the final circuit id.
+        int circuitId = 0;
+        // Attempt to build a circuit at most 5 times.
+        for (int i = 0; i < 5; i++) {
+            // Generate a new random circuit id.
+            circuitId = getUnusedCircuitId();
+            // Get a random primary guard.
+            Guard.GuardInfo guardInfo = clientState.vanguardsLite.getEntryGuard(lastNode);
+            // Create a new circuit using that guard.
+            Circuit circuit = new Circuit(circuitId, guardInfo.guard());
+            // Attempt to initialise the circuit with an NTORv3 handshake.
+            boolean created = circuit.create2(guardInfo.guardMicrodesc(), Handshakes.NTORv3);
+            if (!created) continue;
+            // Get a new second layer vanguard router microdesc.
+            RouterMicrodesc secondLayerMicrodesc = clientState.vanguardsLite.getSecondLayerVanguard(lastNode);
             // Extend the circuit.
-            extended = circuit.extend2(lastNode);
-            if (!extended) throw new RuntimeException("Unhandled for now circuit last extension exception.");
+            boolean extended = circuit.extend2(secondLayerMicrodesc);
+            if (!extended) continue;
+            // If lastNode is null, then we need to find a proper potential exit. If the given port is -1, then this circuit is not an exit circuit.
+            CanExtendTo thirdNode = lastNode;
+            if (lastNode == null || reserve)
+                thirdNode = getPotentialExit(port, guardInfo.guardMicrodesc(), secondLayerMicrodesc, lastNode);
+            // Extend the circuit.
+            extended = circuit.extend2(thirdNode);
+            if (!extended) continue;
+            if (reserve) {
+                // Extend the circuit.
+                extended = circuit.extend2(lastNode);
+                if (!extended) continue;
+            }
+            // Add the circuit to the hashmap.
+            circuitHashMap.put(circuitId, circuit);
+            // If we managed to build a circuit, we can break here.
+            break;
         }
-        // Add the circuit to the hashmap.
-        circuitHashMap.put(circuitId, circuit);
+        // If we weren't able to build a circuit, throw an exception.
+        if (circuitId == 0) throw new RuntimeException("Failed to build circuit.");
         // Release the lock.
         circuitsLock.unlock();
         // Return the circuit id.
@@ -110,6 +120,19 @@ public class CircuitManager {
     public int createDefaultCircuit(int port) {
         // Create a default circuit with an unspecified exit.
         return createDefaultCircuit(port, null, false);
+    }
+
+    public Directory createDirectoryCircuit(RouterMicrodesc directoryMicrodesc) {
+        // Build a circuit to a directory in the network.
+        int circuitId = createDefaultCircuit(-1, directoryMicrodesc);
+        // Acquire the lock.
+        circuitsLock.lock();
+        // Get the circuit from the hashmap.
+        Circuit circuit = circuitHashMap.get(circuitId);
+        // Release the lock.
+        circuitsLock.unlock();
+        // Return a new directory instance.
+        return new Directory(clientState.microdescConsensus, directoryMicrodesc, circuit);
     }
 
     public ConnectionInfo connectWithCircuit(int circuitId, String host, int port) {

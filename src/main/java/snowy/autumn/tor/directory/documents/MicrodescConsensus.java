@@ -5,6 +5,7 @@ import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.directory.Directory;
 import snowy.autumn.tor.directory.DirectoryKeys;
 import snowy.autumn.tor.hs.HiddenService;
+import snowy.autumn.tor.utils.Utils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -20,6 +21,10 @@ public class MicrodescConsensus {
     byte[] previousSRV = new byte[32];
     byte[] currentSRV = new byte[32];
 
+    long validAfter;
+    long freshUntil;
+    long validUntil;
+
     public MicrodescConsensus() {
         // Default params: these params might be changed according to values from the consensus, but unless they're present these should be at their default values.
         params.put("hsdir_n_replicas", 2);
@@ -31,8 +36,11 @@ public class MicrodescConsensus {
         this.params = params;
     }
 
-	public MicrodescConsensus(byte[] previousSRV, byte[] currentSRV, HashMap<String, Integer> params, ArrayList<RouterMicrodesc> microdescs) {
+	public MicrodescConsensus(long validAfter, long freshUntil, long validUntil, byte[] previousSRV, byte[] currentSRV, HashMap<String, Integer> params, ArrayList<RouterMicrodesc> microdescs) {
 		this(params);
+        this.validAfter = validAfter;
+        this.freshUntil = freshUntil;
+        this.validUntil = validUntil;
 		this.previousSRV = previousSRV;
 		this.currentSRV = currentSRV;
 		this.microdescs = microdescs;
@@ -113,6 +121,10 @@ public class MicrodescConsensus {
         if (authDirectoryKeys != null && !validate(authDirectoryKeys, consensusData))
             throw new RuntimeException("Attempted to parse a microdesc consensus, but the consensus was not signed correctly.");
 
+        microdescConsensus.validAfter = Utils.parseDate(consensusData.substring(consensusData.indexOf("valid-after ")).split("\n", 2)[0].split(" ", 2)[1]);
+        microdescConsensus.freshUntil = Utils.parseDate(consensusData.substring(consensusData.indexOf("fresh-until ")).split("\n", 2)[0].split(" ", 2)[1]);
+        microdescConsensus.validUntil = Utils.parseDate(consensusData.substring(consensusData.indexOf("valid-until ")).split("\n", 2)[0].split(" ", 2)[1]);
+
         // Parsing the known-flags listing.
         int startKnownFlags = consensusData.indexOf("\nknown-flags ");
         int endKnownFlags = consensusData.indexOf("\n", startKnownFlags + 1);
@@ -161,7 +173,7 @@ public class MicrodescConsensus {
 
     public void postUpdate() {
         // This is done since clients prefer to match their time periods with their SRVs.
-        int hour = HiddenService.getCurrentTime().getHour();
+        int hour = Utils.getCurrentTime().getHour();
         byte[] srv = hour >= 12 ? currentSRV : previousSRV;
 
         hsDirs.sort((hsDirA, hsDirB) -> Arrays.compareUnsigned(
@@ -197,6 +209,18 @@ public class MicrodescConsensus {
 
     public byte[] getCurrentSRV() {
         return currentSRV;
+    }
+
+    public long getValidAfter() {
+        return validAfter;
+    }
+
+    public long getFreshUntil() {
+        return freshUntil;
+    }
+
+    public long getValidUntil() {
+        return validUntil;
     }
 
     public ArrayList<RouterMicrodesc> getMicrodescs() {
@@ -237,6 +261,16 @@ public class MicrodescConsensus {
 
     public static List<RouterMicrodesc> getAllWithExitPolicy(List<RouterMicrodesc> microdescs, int port) {
         return microdescs.stream().filter(microdesc -> microdesc.getIpv4ExitPolicy() != null && microdesc.getIpv4ExitPolicy().check(port)).toList();
+    }
+
+    public boolean isValid() {
+        long now = Utils.getCurrentTime().toEpochSecond();
+        return now >= validAfter && now < validUntil;
+    }
+
+    public boolean isFresh() {
+        long now = Utils.getCurrentTime().toEpochSecond();
+        return now >= validAfter && now < freshUntil;
     }
 
 }

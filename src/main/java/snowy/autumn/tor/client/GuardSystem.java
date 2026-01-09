@@ -5,10 +5,7 @@ import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.Guard;
 import snowy.autumn.tor.relay.RouterMicrodescList;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class GuardSystem implements RouterMicrodescList {
 
@@ -26,10 +23,14 @@ public class GuardSystem implements RouterMicrodescList {
     public GuardSystem(MicrodescConsensus microdescConsensus) {
         primary.ensureCapacity(primarySize);
         this.microdescConsensus = microdescConsensus;
+        initSampled();
+    }
+
+    public void initSampled() {
         ArrayList<RouterMicrodesc> guardMicrodescs = new ArrayList<>(microdescConsensus.getAllWithFlags(RouterMicrodesc.Flags.GUARD, RouterMicrodesc.Flags.V2DIR));
         // Todo: Replace with the appropriate weighted shuffling algorithm.
         Collections.shuffle(guardMicrodescs);
-        sampled.addAll(guardMicrodescs.stream().limit(sampleSize).toList());
+        sampled.addAll(guardMicrodescs.stream().limit(Math.max(0, sampled.size() - sampleSize)).toList());
     }
 
     private boolean primaryFull() {
@@ -88,20 +89,18 @@ public class GuardSystem implements RouterMicrodescList {
         return promoteNextGuard();
     }
 
-    public void fixAll() {
-        // Todo: Implement this method.
-    }
-
     public ArrayList<Guard.GuardInfo> getPrimary() {
         return primary;
     }
 
     public void setSampled(ArrayList<RouterMicrodesc> sampled) {
         this.sampled = sampled;
+        this.sampled.removeIf(Objects::isNull);
     }
 
     public void setFiltered(ArrayList<RouterMicrodesc> filtered) {
         this.filtered = filtered;
+        this.filtered.removeIf(Objects::isNull);
     }
 
     public void setPrimary(ArrayList<RouterMicrodesc> primary) {
@@ -109,6 +108,7 @@ public class GuardSystem implements RouterMicrodescList {
             Guard.GuardInfo guardInfo = attemptGuard(routerMicrodesc);
             this.primary.add(guardInfo);
         }
+        this.primary.removeIf(Objects::isNull);
     }
 
     public ArrayList<RouterMicrodesc> getSampled() {
