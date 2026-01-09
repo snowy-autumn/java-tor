@@ -6,7 +6,7 @@ It is only meant to be used when access to the tor network is required but priva
 
 ## The state of the project so far
 
-- At the moment there is only a very basic (and probably rather buggy) client.
+- The client is still in the development, but is definitely partially functional.
 - It is possible to fetch a microdesc consensus, create and extend circuits and open streams.
 - It is possible to connect to v3 hidden services.
 
@@ -32,8 +32,34 @@ Security.addProvider(BouncyCastleProvider())
 ```
 
 ---
+### Example usages
+Connect to a regular target:
+```java
+        // Instantiate a new TorClient object, with the tor-client data being stored in the specified path.
+        TorClient torClient = new TorClient("tor-client.data");
+        // Initialise the client (Currently requires a directory to be specified, behaviour will be changed in the future)
+        torClient.initClient(<currently requires a directly to be specified initially>);
+        // Attempt to connect to a certain host:port.
+        ConnectionInfo connectionInfo = torClient.connect(<destination ip>, <port>);
+        // Attempt to send data through the connection.
+        connectionInfo.getConnectionIO().write(<bytes>);
+        // Receive data from the connection.
+        byte[] data = connectionInfo.getConnectionIO().read();
+```
 
-_Note: Since I'm working on a new client at the moment, the previous client has been removed. The current client is not yet complete and probably unstable._
+Connect to a hidden service:
+```java
+        // Instantiate a new TorClient object, with the tor-client data being stored in the specified path.
+        TorClient torClient = new TorClient("tor-client.data");
+        // Initialise the client (Currently requires a directory to be specified, behaviour will be changed in the future)
+        torClient.initClient(<currently requires a directly to be specified initially>);
+        // Attempt to connect to a certain host:port.
+        ConnectionInfo connectionInfo = torClient.connectHS(<onion address>, <port>);
+        // Attempt to send data through the connection.
+        connectionInfo.getConnectionIO().write(<bytes>);
+        // Receive data from the connection.
+        byte[] data = connectionInfo.getConnectionIO().read();
+```
 
 ### Third party licenses:
 - Bouncy Castle - MIT License
