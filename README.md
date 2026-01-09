@@ -19,7 +19,7 @@ For example, at the moment, the implementation uses whatever unix time java give
 If you're trying to use this implementation on Android, you might have to do these things first:
 1. First of all, add BouncyCastle to your `build.gradle.kts` file:
 ```declarative
-implementation("org.bouncycastle:bcprov-jdk15to18:1.81");
+implementation("org.bouncycastle:bcprov-jdk15to18:1.83");
 ```
 This version of BouncyCastle should work just fine with this implementation.
 
@@ -32,10 +32,10 @@ Security.addProvider(BouncyCastleProvider())
 ```
 
 ---
-### Example usages
+## Example usages
 Connect to a regular target:
 ```java
-        // Instantiate a new TorClient object, with the tor-client data being stored in the specified path.
+        // Create a new TorClient object, with the tor-client data being stored in the specified path.
         TorClient torClient = new TorClient("tor-client.data");
         // Initialise the client (Currently requires a directory to be specified, behaviour will be changed in the future)
         torClient.initClient(<currently requires a directly to be specified initially>);
@@ -61,5 +61,5 @@ Connect to a hidden service:
         byte[] data = connectionInfo.getConnectionIO().read();
 ```
 
-### Third party licenses:
-- Bouncy Castle - MIT License
+## Third party licences
+- Bouncy Castle - MIT Licence
