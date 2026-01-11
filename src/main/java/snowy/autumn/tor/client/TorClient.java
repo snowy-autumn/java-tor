@@ -172,7 +172,10 @@ public class TorClient {
         logger.info("Created a new rendezvous circuit through the tor network, circuitId: " + rendezvousInfo.circuitId() + '.');
         logger.info("Established rendezvous on circuit " + rendezvousInfo.circuitId() + '.');
         IntroduceAckCommand.IntroduceAckStatus introduceAckStatus = clientState.circuitManager.introduce(hiddenService, introductionPoint, rendezvousInfo);
-        logger.info("Introduction status: " + introduceAckStatus);
+        // If introduceAckStatus is null, then we've failed to do an introduction.
+        if (introduceAckStatus == null) logger.info("Failed to build an introduction circuit.");
+        else logger.info("Introduction status: " + introduceAckStatus);
+
         if (introduceAckStatus != IntroduceAckCommand.IntroduceAckStatus.SUCCESS) {
             logger.info("Failed to finish introduction with hidden service.");
             clientState.circuitManager.tearCircuit(rendezvousInfo.circuitId());

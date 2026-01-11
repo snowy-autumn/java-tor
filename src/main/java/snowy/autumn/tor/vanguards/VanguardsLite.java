@@ -40,7 +40,13 @@ public class VanguardsLite {
     public RouterMicrodesc getSecondLayerVanguard(CanExtendTo... existingNodes) {
         RouterMicrodesc secondLayerMicrodesc = null;
         while (secondLayerMicrodesc == null) {
-            secondLayerMicrodesc = secondLayer.getRandom().getRouterMicrodesc();
+            VanguardsLayer.Vanguard vanguard = secondLayer.getRandom();
+            if (vanguard == null) {
+                fixAll();
+                vanguard = secondLayer.getRandom();
+                if (vanguard == null) return null;
+            }
+            secondLayerMicrodesc = vanguard.getRouterMicrodesc();
             if (existingNodes != null && Arrays.asList(existingNodes).contains(secondLayerMicrodesc))
                 secondLayerMicrodesc = null;
         }

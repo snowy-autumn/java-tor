@@ -415,6 +415,8 @@ public class ClientCacheManager {
             }
             // Make sure that we don't just lose routers when they get unlisted without replacing them.
             clientState.vanguardsLite.getGuardSystem().initSampled();
+            // Make sure to rotate old vanguards and replace null vanguards with new ones.
+            clientState.vanguardsLite.fixAll();
 
             // Finally, close the cache file input stream.
             inputStream.close();

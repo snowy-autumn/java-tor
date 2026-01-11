@@ -6,7 +6,7 @@ It is only meant to be used when access to the tor network is required but priva
 
 ## The state of the project so far
 
-- The client is still in the development, but is definitely partially functional.
+- The client is still in development, but it's definitely partially functional.
 - It is possible to fetch a microdesc consensus, create and extend circuits and open streams.
 - It is possible to connect to v3 hidden services.
 
@@ -37,7 +37,7 @@ Connect to a regular target:
 ```java
         // Create a new TorClient object, with the tor-client data being stored in the specified path.
         TorClient torClient = new TorClient("tor-client.data");
-        // Initialise the client (Currently requires a directory to be specified, behaviour will be changed in the future)
+        // Initialise the client (Currently requires a tor directory to be specified, behaviour will be changed in the future)
         torClient.initClient(<currently requires a directly to be specified initially>);
         // Attempt to connect to a certain host:port.
         ConnectionInfo connectionInfo = torClient.connect(<destination ip>, <port>);

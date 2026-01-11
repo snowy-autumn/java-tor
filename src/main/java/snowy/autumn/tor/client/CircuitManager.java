@@ -85,6 +85,13 @@ public class CircuitManager {
             if (!created) continue;
             // Get a new second layer vanguard router microdesc.
             RouterMicrodesc secondLayerMicrodesc = clientState.vanguardsLite.getSecondLayerVanguard(lastNode);
+            // If there is no available second layer vanguard, then the circuit will always fail.
+            if (secondLayerMicrodesc == null) {
+                // Destroy the circuit without the terminating the guard.
+                circuit.destroy(false);
+                // Return 0 (Since 0 is not associated with any circuit.)
+                return 0;
+            }
             // Extend the circuit.
             boolean extended = circuit.extend2(secondLayerMicrodesc);
             if (!extended) continue;
@@ -241,6 +248,8 @@ public class CircuitManager {
     public IntroduceAckCommand.IntroduceAckStatus introduce(HiddenService hiddenService, IntroductionPoint introductionPoint, RendezvousInfo rendezvousInfo) {
         // Build a circuit to the introduction point.
         int circuitId = createDefaultCircuit(-1, introductionPoint, true);
+        // If the circuitId is 0, then the circuit creation has failed.
+        if (circuitId == 0) return null;
         // Acquire the lock.
         circuitsLock.lock();
         // Get the created circuit from the hashmap.

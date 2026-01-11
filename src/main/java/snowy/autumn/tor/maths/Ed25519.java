@@ -54,7 +54,6 @@ public class Ed25519 {
 
             return publicKey;
         }
-
     }
 
     public record Ed25519PublicKeyProperties(BigInteger y, byte xSign) {}

@@ -88,6 +88,7 @@ public class VanguardsLayer implements RouterMicrodescList {
     }
 
     public void fixAll(RouterMicrodescList... otherLayers) {
+        // Todo: Change the client's behaviour so that if we're trying to fetch a new microdesc consensus, vanguards will not be rotated but simply removed.
         for (int i = 0; i < vanguards.length; i++) {
             if (vanguards[i] == null || vanguards[i].shouldRotate()) {
                 rotateVanguard(i, otherLayers);
