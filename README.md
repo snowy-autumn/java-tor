@@ -35,8 +35,8 @@ Connect to a regular target:
 ```java
         // Create a new TorClient object, with the tor-client data being stored in the specified path.
         TorClient torClient = new TorClient("tor-client.data");
-        // Initialise the client (Currently requires a tor directory to be specified, behaviour will be changed in the future)
-        torClient.initClient(<currently requires a directly to be specified initially>);
+        // Initialise the client.
+        torClient.initClient(<If no tor directory is specified, then a random authority will be used>);
         // Attempt to connect to a certain host:port.
         ConnectionInfo connectionInfo = torClient.connect(<destination ip>, <port>);
         // Attempt to send data through the connection.
@@ -49,8 +49,8 @@ Connect to a hidden service:
 ```java
         // Instantiate a new TorClient object, with the tor-client data being stored in the specified path.
         TorClient torClient = new TorClient("tor-client.data");
-        // Initialise the client (Currently requires a directory to be specified, behaviour will be changed in the future)
-        torClient.initClient(<currently requires a directly to be specified initially>);
+        // Initialise the client.
+        torClient.initClient(<If no tor directory is specified, then a random authority will be used>));
         // Attempt to connect to a certain host:port.
         ConnectionInfo connectionInfo = torClient.connectHS(<onion address>, <port>);
         // Attempt to send data through the connection.

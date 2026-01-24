@@ -12,6 +12,7 @@ import snowy.autumn.tor.vanguards.VanguardsLite;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
@@ -93,6 +94,26 @@ public class TorClient {
 
         logger.info("Microdescriptors fetched successfully.");
         return true;
+    }
+
+    public boolean initClient() {
+        // Create an arraylist that contains all known authorities. Should also add fallbacks in the future.
+        ArrayList<Directory.Authorities> authorities = new ArrayList<>(Arrays.stream(Directory.Authorities.values()).toList());
+        // Make at most 3 attempts to initialise the client;
+        for (int i = 0; i < 3; i++) {
+            // Pick a random authority to use as the directory for bootstrapping.
+            Directory.Authorities authority = authorities.get(clientState.random.nextInt(authorities.size()));
+            // Create a Directory object for the authority.
+            Directory directory = new Directory(authority.getIpv4(), authority.getORPort());
+            // Attempt to initialise the client with the authority.
+            initClient(directory);
+            // If we've managed to bootstrap, we can break out of the loop.
+            if (bootstrapped)
+                break;
+            // If not, log the issue.
+            logger.info("Failed to initialise with directory " + directory + ".");
+        }
+        return bootstrapped;
     }
 
     public void initClient(Directory directory) {
