@@ -42,6 +42,7 @@ public class TorClient {
     ClientCacheManager cacheManager;
 
     ClientState clientState;
+    boolean bootstrapped;
 
     public TorClient(String cacheFilePath, boolean debug) {
         logger = new Logger(debug);
@@ -147,10 +148,12 @@ public class TorClient {
             cacheManager.storeClientData(clientState.authorityKeys, clientState.microdescConsensus, clientState.vanguardsLite);
         }
 
+        bootstrapped = true;
         logger.info("Client::Ready.");
     }
 
     public ConnectionInfo connect(String host, int port) {
+        if (!bootstrapped) throw new RuntimeException("Client must be initialised before building circuits.");
         logger.info("Attempting to connect to " + host + ':' + port + '.');
         int circuitId = clientState.circuitManager.createDefaultCircuit(port);
         logger.info("Created a new circuit through the tor network, circuitId: " + circuitId + '.');
@@ -161,6 +164,7 @@ public class TorClient {
     }
 
     public ConnectionInfo connectHS(String onionAddress, int port) {
+        if (!bootstrapped) throw new RuntimeException("Client must be initialised before building circuits.");
         logger.info("Attempting to fetch the hidden service descriptor for " + onionAddress + '.');
         HiddenService hiddenService = new HiddenService(clientState.microdescConsensus, onionAddress);
         HiddenServiceDescriptor hiddenServiceDescriptor = clientState.circuitManager.fetchHSDescriptor(hiddenService);
@@ -190,6 +194,12 @@ public class TorClient {
         if (connectionInfo == null) logger.info("Failed to establish a connection to " + onionAddress + ':' + port + '.');
         else logger.info("Connected to " + onionAddress + ':' + port + '.');
         return connectionInfo;
+    }
+
+    public void shutdown() {
+        logger.info("Client::Shutdown");
+        clientState.vanguardsLite.getGuardSystem().getPrimary().forEach(guard -> guard.guard().terminate());
+        bootstrapped = false;
     }
 
 }

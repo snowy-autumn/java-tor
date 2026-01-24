@@ -27,7 +27,7 @@ public class VanguardsLite {
         Guard.GuardInfo primaryGuardInfo = null;
         while (primaryGuardInfo == null) {
             primaryGuardInfo = guardSystem.getRandomPrimaryGuardInfo();
-            if (existingNodes != null && Arrays.asList(existingNodes).contains(primaryGuardInfo.guardMicrodesc()))
+            if (existingNodes != null && primaryGuardInfo != null && Arrays.asList(existingNodes).contains(primaryGuardInfo.guardMicrodesc()))
                 primaryGuardInfo = null;
         }
         return primaryGuardInfo;

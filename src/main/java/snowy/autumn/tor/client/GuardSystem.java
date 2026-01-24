@@ -30,7 +30,7 @@ public class GuardSystem implements RouterMicrodescList {
         ArrayList<RouterMicrodesc> guardMicrodescs = new ArrayList<>(microdescConsensus.getAllWithFlags(RouterMicrodesc.Flags.GUARD, RouterMicrodesc.Flags.V2DIR));
         // Todo: Replace with the appropriate weighted shuffling algorithm.
         Collections.shuffle(guardMicrodescs);
-        sampled.addAll(guardMicrodescs.stream().limit(Math.max(0, sampled.size() - sampleSize)).toList());
+        sampled.addAll(guardMicrodescs.stream().limit(Math.max(0, guardMicrodescs.size() - sampleSize)).toList());
     }
 
     private boolean primaryFull() {
