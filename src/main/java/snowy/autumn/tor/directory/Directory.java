@@ -61,7 +61,7 @@ public class Directory {
     Circuit circuit;
     Random random = new Random();
     Guard guard;
-    MicrodescConsensus microdescConsensus;
+    protected MicrodescConsensus microdescConsensus;
     RouterMicrodesc directoryMicrodesc;
 
     public Directory(MicrodescConsensus microdescConsensus, RouterMicrodesc directoryMicrodesc, Circuit circuit) {

@@ -6,13 +6,11 @@ It is only meant to be used when access to the tor network is required but priva
 
 ## The state of the project so far
 
-- The client is still in development, but it's definitely partially functional.
+- The client is still in development, but it's definitely mostly functional.
 - It is possible to fetch a microdesc consensus, create and extend circuits and open streams.
 - It is possible to connect to v3 hidden services.
 
-Overall, the system is very rigid at the moment and likely isn't able to handle everything that it might encounter.
-
-For example, at the moment, the implementation uses whatever unix time java gives it, instead of using the valid-after time from the consensus. (This is probably not an issue that is likely to occur very often, but it could happen if the system clock is skewed just enough and the client is used just at the right time.) 
+Overall, the system is working but might not handle everything it encounters.
 
 ---
 ## Usage on Android

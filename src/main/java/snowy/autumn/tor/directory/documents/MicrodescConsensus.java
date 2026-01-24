@@ -177,8 +177,8 @@ public class MicrodescConsensus {
         byte[] srv = hour >= 12 ? currentSRV : previousSRV;
 
         hsDirs.sort((hsDirA, hsDirB) -> Arrays.compareUnsigned(
-                hsDirA.calculateHsRelayIndexConditional(srv),
-                hsDirB.calculateHsRelayIndexConditional(srv)
+                hsDirA.calculateHsRelayIndexConditional(srv, validAfter),
+                hsDirB.calculateHsRelayIndexConditional(srv, validAfter)
         ));
     }
 

@@ -15,7 +15,7 @@ public class HiddenServiceDescriptor {
         // Note: Throughout the decryption process, I replace the bytes for '\r\n' with '\n'.
         // This is not required, but since it doesn't interfere with the decryption, I do it anyway.
 
-        byte[] blindedPublicKey = hiddenService.getOnionAddress().blindedPublicKey();
+        byte[] blindedPublicKey = hiddenService.getOnionAddress().blindedPublicKey(hiddenService.getHSCurrentTime());
 
         // First layer of encryption decryption.
         byte[] encryptedBytes = Cryptography.hsDescriptorDecrypt(hiddenService, revisionCounter, superencrypted, blindedPublicKey, "hsdir-superencrypted-data".getBytes());

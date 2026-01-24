@@ -3,7 +3,6 @@ package snowy.autumn.tor.hs;
 import snowy.autumn.tor.crypto.Cryptography;
 import snowy.autumn.tor.directory.documents.MicrodescConsensus;
 import snowy.autumn.tor.directory.documents.RouterMicrodesc;
-import snowy.autumn.tor.utils.Utils;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -26,8 +25,8 @@ public class HiddenService {
             this.hsRelayIndex = hsRelayIndex;
         }
 
-        public byte[] calculateHsRelayIndexConditional(byte[] srv) {
-            if (this.hsRelayIndex.length == 0) return this.hsRelayIndex = HiddenService.hsRelayIndex(srv, microdesc.getEd25519Id());
+        public byte[] calculateHsRelayIndexConditional(byte[] srv, long currentTime) {
+            if (this.hsRelayIndex.length == 0) return this.hsRelayIndex = HiddenService.hsRelayIndex(srv, microdesc.getEd25519Id(), currentTime);
             return this.hsRelayIndex;
         }
 
@@ -46,19 +45,19 @@ public class HiddenService {
         return 1440;
     }
 
-    public static long getCurrentTimePeriod() {
-        long unixTimeInMinutes = Utils.getCurrentTime().toEpochSecond() / 60;
+    public static long getCurrentTimePeriod(long currentTime) {
+        long unixTimeInMinutes = currentTime / 60;
         unixTimeInMinutes -= 12 * 60;
         unixTimeInMinutes /= getPeriodLength();
         return unixTimeInMinutes;
     }
 
-    public static byte[] hsRelayIndex(byte[] srv, byte[] ed25519Id) {
+    public static byte[] hsRelayIndex(byte[] srv, byte[] ed25519Id, long validAfter) {
         MessageDigest sha3_256 = Cryptography.createDigest("SHA3-256");
         sha3_256.update("node-idx".getBytes());
         sha3_256.update(ed25519Id);
         sha3_256.update(srv);
-        sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentTimePeriod()).array());
+        sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentTimePeriod(validAfter)).array());
         sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getPeriodLength()).array());
         return sha3_256.digest();
     }
@@ -69,11 +68,10 @@ public class HiddenService {
         HashSet<RouterMicrodesc> potentialHsDirs = new HashSet<>();
         for (int replicanum = 1; replicanum < microdescConsensus.hsDirNReplicas() + 1; replicanum++) {
             sha3_256.update("store-at-idx".getBytes());
-            sha3_256.update(onionAddress.blindedPublicKey());
+            sha3_256.update(onionAddress.blindedPublicKey(microdescConsensus.getValidAfter()));
             sha3_256.update(ByteBuffer.allocate(8).putLong(replicanum).array());
-            // Todo: Change this to use the valid-after time from the consensus.
             sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getPeriodLength()).array());
-            sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentTimePeriod()).array());
+            sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentTimePeriod(microdescConsensus.getValidAfter())).array());
             byte[] replica = sha3_256.digest();
 
             int fetchIndex = 0;
@@ -93,5 +91,9 @@ public class HiddenService {
 
     public OnionAddress getOnionAddress() {
         return onionAddress;
+    }
+
+    public long getHSCurrentTime() {
+        return microdescConsensus.getValidUntil();
     }
 }

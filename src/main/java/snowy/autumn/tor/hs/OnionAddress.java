@@ -46,14 +46,14 @@ public class OnionAddress {
     }
 
     // This method is private since even arti doesn't use 'secret', and so it's likely that most people will not need access to it.
-    private byte[] calculateBlindingFactor(byte[] secret) {
+    private byte[] calculateBlindingFactor(byte[] secret, long currentTime) {
         MessageDigest sha3_256 = Cryptography.createDigest("SHA3-256");
         sha3_256.update(BLIND_STRING);
         sha3_256.update(publicKey);
         sha3_256.update(secret);
         sha3_256.update(ED25519_BASEPOINT);
         sha3_256.update("key-blind".getBytes());
-        sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentTimePeriod()).array());
+        sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getCurrentTimePeriod(currentTime)).array());
         sha3_256.update(ByteBuffer.allocate(8).putLong(HiddenService.getPeriodLength()).array());
         return sha3_256.digest();
     }
@@ -61,9 +61,9 @@ public class OnionAddress {
     /**
      Calculates the blinded public key. Assumes that 'secret' is a nonce, as mentioned in the comment for {@link #calculateBlindingFactor(byte[] secret)}
      **/
-    public byte[] blindedPublicKey() {
+    public byte[] blindedPublicKey(long currentTime) {
         // Calculate the blinding factor for the current period.
-        byte[] blindingFactor = calculateBlindingFactor(new byte[0]);
+        byte[] blindingFactor = calculateBlindingFactor(new byte[0], currentTime);
         // Clamps the blinding factor as if it were an Ed25519 private key.
         blindingFactor = Ed25519.clampPrivateKey(blindingFactor);
 
@@ -77,11 +77,11 @@ public class OnionAddress {
     }
 
     // Calculates the subcredential for the current period.
-    public byte[] N_hs_subcredential() {
+    public byte[] N_hs_subcredential(long currentTime) {
         MessageDigest sha3_256 = Cryptography.createDigest("SHA3-256");
         sha3_256.update("subcredential".getBytes());
         sha3_256.update(N_hs_credential);
-        sha3_256.update(blindedPublicKey());
+        sha3_256.update(blindedPublicKey(currentTime));
         return sha3_256.digest();
     }
 

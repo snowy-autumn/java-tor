@@ -14,7 +14,7 @@ public class HSDirectory extends Directory {
     }
 
     public HiddenServiceDescriptor fetchHSDescriptor(HiddenService hiddenService) {
-        String response = httpRequest("GET /tor/hs/3/" + Base64.getEncoder().encodeToString(hiddenService.getOnionAddress().blindedPublicKey()) + " HTTP/1.0\r\n\r\n");
+        String response = httpRequest("GET /tor/hs/3/" + Base64.getEncoder().encodeToString(hiddenService.getOnionAddress().blindedPublicKey(hiddenService.getHSCurrentTime())) + " HTTP/1.0\r\n\r\n");
         if (response == null) return null;
         if (!response.startsWith("HTTP/1.0 200 OK")) return null;
 

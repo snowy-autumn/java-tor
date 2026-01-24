@@ -340,7 +340,7 @@ public class Cryptography {
         shakeDigest.update(HS_NTOR_t_hsenc.getBytes(), 0, HS_NTOR_t_hsenc.length());
         // info
         shakeDigest.update(HS_NTOR_m_hsexpand.getBytes(), 0, HS_NTOR_m_hsexpand.length());
-        shakeDigest.update(hiddenService.getOnionAddress().N_hs_subcredential(), 0, 32);
+        shakeDigest.update(hiddenService.getOnionAddress().N_hs_subcredential(hiddenService.getHSCurrentTime()), 0, 32);
         // output keys (ENC_KEY, MAC_KEY)
         byte[] encryptionKey = new byte[CIPHER_KEY_LENGTH];
         byte[] macKey = new byte[MAC_KEY_LENGTH];
@@ -387,7 +387,7 @@ public class Cryptography {
         buffer.get(salt).get(encrypted).get(mac);
 
         SHAKEDigest shakeDigest = new SHAKEDigest(256);
-        byte[] subcredential = hiddenService.getOnionAddress().N_hs_subcredential();
+        byte[] subcredential = hiddenService.getOnionAddress().N_hs_subcredential(hiddenService.getHSCurrentTime());
 
         // secretInput = secretData | subcredential | revisionCounter
         shakeDigest.update(secretData, 0, secretData.length);
