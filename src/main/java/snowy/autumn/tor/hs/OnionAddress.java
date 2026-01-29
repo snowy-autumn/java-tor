@@ -85,4 +85,7 @@ public class OnionAddress {
         return sha3_256.digest();
     }
 
+    public String getAddress() {
+        return address;
+    }
 }

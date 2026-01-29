@@ -57,6 +57,8 @@ public class MicrodescConsensus {
         if (directories.length < 1)
             throw new IllegalArgumentException("At least one directory needs to be passed in order to fetch microdescriptors for a microdesc-consensus.");
 
+        ArrayList<Directory> directoryList = new ArrayList<>(List.of(directories));
+
         int maxPerMirror = 128;
         int maxPerRequest = 92;
         // We sort them in their respective chunks in a descending order, so that we could more easily identify them later on.
@@ -67,14 +69,22 @@ public class MicrodescConsensus {
                         .toList()).toList();
 
         for (int chunkIndex = 0; chunkIndex < chunks.size(); chunkIndex++) {
-            Directory directory = directories[chunkIndex % directories.length];
+            Directory directory = directoryList.get(chunkIndex % directoryList.size());
             List<RouterMicrodesc> chunk = chunks.get(chunkIndex);
             if (chunk.size() > maxPerRequest) {
                 List<List<RouterMicrodesc>> temporary = IntStream.range(0, 2).mapToObj(i -> chunk.subList(i * maxPerRequest, Math.min(chunk.size(), (i + 1) * maxPerRequest))).toList();
                 for (List<RouterMicrodesc> sub : temporary)
-                    if (!directory.fetchMicrodescriptors(sub)) return false;
+                    if (!directory.fetchMicrodescriptors(sub)) {
+                        directoryList.remove(directory);
+                        chunkIndex--;
+                        break;
+                    }
             }
-            else if (!directory.fetchMicrodescriptors(chunk)) return false;
+            else if (!directory.fetchMicrodescriptors(chunk)) {
+                directoryList.remove(directory);
+                chunkIndex--;
+            }
+            if (directoryList.isEmpty()) return false;
         }
 
         postUpdate();

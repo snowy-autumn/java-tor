@@ -41,7 +41,6 @@ public class TorClient {
 
     Logger logger;
     ClientCacheManager cacheManager;
-
     ClientState clientState;
     boolean bootstrapped;
 
@@ -91,6 +90,8 @@ public class TorClient {
             logger.error("Failed to fetch all microdescriptors.");
             return false;
         }
+
+        directory.destroyCircuit();
 
         logger.info("Microdescriptors fetched successfully.");
         return true;
@@ -188,7 +189,11 @@ public class TorClient {
         if (!bootstrapped) throw new RuntimeException("Client must be initialised before building circuits.");
         logger.info("Attempting to fetch the hidden service descriptor for " + onionAddress + '.');
         HiddenService hiddenService = new HiddenService(clientState.microdescConsensus, onionAddress);
-        HiddenServiceDescriptor hiddenServiceDescriptor = clientState.circuitManager.fetchHSDescriptor(hiddenService);
+        HiddenServiceDescriptor hiddenServiceDescriptor = null;
+        for (int i = 0; i < 3; i++) {
+            if ((hiddenServiceDescriptor = clientState.circuitManager.fetchHSDescriptor(hiddenService)) != null) break;
+        }
+        if (hiddenServiceDescriptor == null) return null;
 
         ArrayList<IntroductionPoint> introductionPoints = hiddenServiceDescriptor.getIntroductionPoints();
         IntroductionPoint introductionPoint = introductionPoints.get(clientState.random.nextInt(introductionPoints.size()));

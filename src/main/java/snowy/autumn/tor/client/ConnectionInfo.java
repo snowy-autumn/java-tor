@@ -13,7 +13,7 @@ public class ConnectionInfo {
 	}
 
 	public boolean isConnected() {
-		return connectionIO != null && status == Circuit.STREAM_SUCCESSFUL;
+		return connectionIO != null && status == Circuit.STREAM_SUCCESSFUL && connectionIO.isConnected();
 	}
 
 	public ConnectionIO getConnectionIO() {

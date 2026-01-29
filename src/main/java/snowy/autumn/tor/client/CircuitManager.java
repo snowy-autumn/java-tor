@@ -80,6 +80,8 @@ public class CircuitManager {
             Guard.GuardInfo guardInfo = clientState.vanguardsLite.getEntryGuard(lastNode);
             // Create a new circuit using that guard.
             Circuit circuit = new Circuit(circuitId, guardInfo.guard());
+            // Update the circuit from the current microdesc consensus (mainly to keep sendMeVersion correct).
+            circuit.updateFromConsensus(clientState.microdescConsensus);
             // Attempt to initialise the circuit with an NTORv3 handshake.
             boolean created = circuit.create2(guardInfo.guardMicrodesc(), Handshakes.NTORv3);
             if (!created) continue;
@@ -151,24 +153,38 @@ public class CircuitManager {
             circuit = circuitHashMap.get(circuitId);
         else throw new RuntimeException("Attempted to get a non-existent circuit.");
         // Attempt to open a stream to the target.
-        short streamId = (short) random.nextInt();
-        int streamStatus = circuit.openStream(streamId, host, port);
-        // Get long representation of circuit and stream.
-        long circuitStreamId = longFromCircuitAndStream(circuitId, streamId);
-        ConnectionInfo connectionInfo = new ConnectionInfo(new ConnectionIO(circuit, streamId), (byte) streamStatus);
-        // Release the lock.
-        circuitsLock.unlock();
-        // If the connection failed, then return connectionInfo now.
-        if (!connectionInfo.isConnected())
-            return connectionInfo;
+        short streamId = 0;
         // Acquire the streams lock.
         streamsLock.lock();
-        // Put connectionInfo in the connectionInfos hashmap.
-        connectionInfoHashMap.put(circuitStreamId, connectionInfo);
-        // Release the lock.
-        streamsLock.unlock();
-        // Return connectionInfo.
-        return connectionInfo;
+        try {
+            while (streamId == 0) {
+                streamId = (short) random.nextInt();
+                if (!connectionInfoHashMap.containsKey(longFromCircuitAndStream(circuitId, streamId)))
+                    break;
+                else {
+                    ConnectionInfo connectionInfo = connectionInfoHashMap.get(longFromCircuitAndStream(circuitId, streamId));
+                    if (connectionInfo == null || !connectionInfo.isConnected()) break;
+                }
+            }
+            int streamStatus = circuit.openStream(streamId, host, port);
+            // Get long representation of circuit and stream.
+            long circuitStreamId = longFromCircuitAndStream(circuitId, streamId);
+            ConnectionInfo connectionInfo = new ConnectionInfo(new ConnectionIO(circuit, streamId), (byte) streamStatus);
+            // Release the lock.
+            circuitsLock.unlock();
+            // If the connection failed, then return connectionInfo now.
+            if (!connectionInfo.isConnected())
+                return connectionInfo;
+            // Put connectionInfo in the connectionInfos hashmap.
+            connectionInfoHashMap.put(circuitStreamId, connectionInfo);
+            // Return connectionInfo.
+            return connectionInfo;
+        }
+        finally {
+            // Release the lock.
+            streamsLock.unlock();
+        }
+
     }
 
     public ConnectionInfo connectHSWithCircuit(int circuitId, int port) {
@@ -180,27 +196,47 @@ public class CircuitManager {
             circuit = circuitHashMap.get(circuitId);
         else throw new RuntimeException("Attempted to get a non-existent circuit.");
         // Attempt to open a stream to the target port.
-        short streamId = (short) random.nextInt();
-        int streamStatus = circuit.openHSStream(streamId, port);
-        // Get long representation of circuit and stream.
-        long circuitStreamId = longFromCircuitAndStream(circuitId, streamId);
-        ConnectionInfo connectionInfo = new ConnectionInfo(new ConnectionIO(circuit, streamId), (byte) streamStatus);
-        // Release the lock.
-        circuitsLock.unlock();
-        // If the connection failed, then return connectionInfo now.
-        if (!connectionInfo.isConnected())
-            return connectionInfo;
+        short streamId = 0;
         // Acquire the streams lock.
         streamsLock.lock();
-        // Put connectionInfo in the connectionInfos hashmap.
-        connectionInfoHashMap.put(circuitStreamId, connectionInfo);
-        // Release the lock.
-        streamsLock.unlock();
-        // Return connectionInfo.
-        return connectionInfo;
+        try {
+            while (streamId == 0) {
+                streamId = (short) random.nextInt();
+                if (!connectionInfoHashMap.containsKey(longFromCircuitAndStream(circuitId, streamId)))
+                    break;
+                else {
+                    ConnectionInfo connectionInfo = connectionInfoHashMap.get(longFromCircuitAndStream(circuitId, streamId));
+                    if (connectionInfo == null || !connectionInfo.isConnected()) break;
+                }
+            }
+            int streamStatus = circuit.openHSStream(streamId, port);
+            // Get long representation of circuit and stream.
+            long circuitStreamId = longFromCircuitAndStream(circuitId, streamId);
+            ConnectionInfo connectionInfo = new ConnectionInfo(new ConnectionIO(circuit, streamId), (byte) streamStatus);
+            // Release the lock.
+            circuitsLock.unlock();
+            // If the connection failed, then return connectionInfo now.
+            if (!connectionInfo.isConnected())
+                return connectionInfo;
+            // Put connectionInfo in the connectionInfos hashmap.
+            connectionInfoHashMap.put(circuitStreamId, connectionInfo);
+            // Return connectionInfo.
+            return connectionInfo;
+        } finally {
+            // Release the lock.
+            streamsLock.unlock();
+        }
     }
 
+    HashMap<String, HiddenServiceDescriptor> hsDescHashmap = new HashMap<>();
+    ReentrantLock hsDescLock = new ReentrantLock();
+
     public HiddenServiceDescriptor fetchHSDescriptor(HiddenService hiddenService) {
+        String address = hiddenService.getOnionAddress().getAddress();
+        hsDescLock.lock();
+        HiddenServiceDescriptor hsDescriptor = hsDescHashmap.get(address);
+        hsDescLock.unlock();
+        if (hsDescriptor != null) return hsDescriptor;
         // Get a list of possible fetch directories.
         List<RouterMicrodesc> fetchDirectories = hiddenService.possibleFetchDirectories().stream().toList();
         // Pick a random HSDirectory to fetch the HSDescriptor from.
@@ -218,7 +254,10 @@ public class CircuitManager {
         // If we couldn't extend to the HSDirectory for whatever reason, we return null.
         if (!hsDirectory.extendToDirectory()) return null;
         // If we managed to extend successfully, then we'll attempt to fetch the HSDescriptor from the HSDirectory.
-        HiddenServiceDescriptor hsDescriptor = hsDirectory.fetchHSDescriptor(hiddenService);
+        hsDescriptor = hsDirectory.fetchHSDescriptor(hiddenService);
+        hsDescLock.lock();
+        hsDescHashmap.put(address, hsDescriptor);
+        hsDescLock.unlock();
         // Destroy the circuit without terminating the guard.
         circuit.destroy(false);
         // Return the fetched HSDescriptor (which would be null if it failed to fetch it).

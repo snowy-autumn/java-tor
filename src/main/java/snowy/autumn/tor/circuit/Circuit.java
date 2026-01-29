@@ -222,7 +222,7 @@ public class Circuit {
         else if (created2Cell.getHandshakeType() == Handshakes.NTORv3) {
             keys = Handshakes.finishNtorV3Handshake(routerMicrodesc.getNtorOnionKey(), routerMicrodesc.getEd25519Id(), create2Cell.getKeyPair(), created2Cell.getPublicKey(), create2Cell.getMac(), created2Cell.getAuth(), created2Cell.getEncryptedMessage());
             byte[] serverMessage = keys.KH();
-            // There are no supported ntor-v3 extensions at the moment, so serverMessage is current not being used.
+            // There are no supported ntor-v3 extensions at the moment, so serverMessage is currently not being used.
         }
         relayKeys.add(keys);
         this.connected = CONNECTED;
@@ -273,7 +273,7 @@ public class Circuit {
         else if (extended2Command.getHandshakeType() == Handshakes.NTORv3) {
             keys = Handshakes.finishNtorV3Handshake(ntorOnionKey, ed25519Id, extend2Command.getKeyPair(), extended2Command.getPublicKey(), extend2Command.getMac(), extended2Command.getAuth(), extended2Command.getEncryptedMessage());
             byte[] serverMessage = keys.KH();
-            // There are no supported ntor-v3 extensions at the moment, so serverMessage is current not being used.
+            // There are no supported ntor-v3 extensions at the moment, so serverMessage is currently not being used.
         }
         relayKeys.add(keys);
         return keys != null || Boolean.TRUE.equals(guard.terminate());

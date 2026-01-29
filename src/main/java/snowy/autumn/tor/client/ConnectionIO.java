@@ -39,6 +39,8 @@ public class ConnectionIO {
         byte[] data = null;
         if (relayCell instanceof DataCommand dataCommand)
             data = dataCommand.getData();
+        else if (relayCell instanceof EndCommand endCommand)
+            connected = false;
 
         try {
             return data;
