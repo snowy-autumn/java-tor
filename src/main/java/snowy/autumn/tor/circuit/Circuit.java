@@ -171,7 +171,7 @@ public class Circuit {
     private <T extends Cell> T waitForCellByCommand(byte command) {
         // Todo: Add timeout.
         T cell = null;
-        while (cell == null)
+        while (cell == null && (guard.isConnected() && (isConnected() || connected == NOT_SET || !pendingCells.isEmpty())))
             cell = getCellByCommand(command);
         return cell;
     }
@@ -341,6 +341,7 @@ public class Circuit {
     public boolean destroy(boolean terminateGuard) {
         // Clients should always send NONE as the reason for a DESTROY cell.
         boolean success = sendCell(new DestroyCell(circuitId, connected = DestroyCell.DestroyReason.NONE.getReason()));
+        guard.removeCircuit(circuitId);
         if (terminateGuard) guard.terminate();
         return success;
     }
