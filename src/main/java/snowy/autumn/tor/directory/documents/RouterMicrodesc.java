@@ -97,7 +97,7 @@ public class RouterMicrodesc implements CanExtendTo {
     String host;
     int port;
     byte[] fingerprint;
-    String microdescHash;
+    byte[] microdescHash;
     byte[] ntorOnionKey;
     byte[] ed25519Id;
     byte[][] family = new byte[0][20];
@@ -114,7 +114,7 @@ public class RouterMicrodesc implements CanExtendTo {
         this.host = host;
         this.port = port;
         this.fingerprint = fingerprint;
-        this.microdescHash = microdescHash;
+        this.microdescHash = Base64.getDecoder().decode(microdescHash);
         this.ipv6host = ipv6host;
         this.ipv6port = ipv6port;
         setFlags(flags);
@@ -132,7 +132,7 @@ public class RouterMicrodesc implements CanExtendTo {
 		this.fingerprint = fingerprint;
 		this.ed25519Id = ed25519Id;
 		this.ntorOnionKey = ntorOnionKey;
-		this.microdescHash = Base64.getEncoder().withoutPadding().encodeToString(microdescHash);
+		this.microdescHash = microdescHash;
 		try {
 			this.ipv6host = ipv6host == null ? null : Inet6Address.getByAddress(ipv6host).getHostAddress();
 		}
@@ -174,8 +174,8 @@ public class RouterMicrodesc implements CanExtendTo {
 
     public boolean updateFromMicrodesc(String microdesc) {
         // Verify that the calculated microdesc hash matches the advertised hash in the microdesc consensus.
-        String calculatedMicrodescHash = Base64.getEncoder().withoutPadding().encodeToString(Cryptography.createDigest("SHA-256").digest(("onion-key\n" + microdesc.trim() + '\n').getBytes()));
-        if (!calculatedMicrodescHash.equals(microdescHash)) return false;
+        byte[] calculatedMicrodescHash = Cryptography.createDigest("SHA-256").digest(("onion-key\n" + microdesc.trim() + '\n').getBytes());
+        if (!Arrays.equals(calculatedMicrodescHash, microdescHash)) return false;
 
         int ntorOnionKeyStart = microdesc.indexOf("ntor-onion-key");
         ntorOnionKey = Base64.getDecoder().decode(microdesc.substring(ntorOnionKeyStart, microdesc.indexOf('\n', ntorOnionKeyStart)).split(" ")[1]);
@@ -278,8 +278,12 @@ public class RouterMicrodesc implements CanExtendTo {
         return buffer.array();
     }
 
-    public String getMicrodescHash() {
+    public byte[] getMicrodescHash() {
         return microdescHash;
+    }
+
+    public String getEncodedMicrodescHash() {
+        return Base64.getEncoder().withoutPadding().encodeToString(microdescHash);
     }
 
     public boolean isRelated(RouterMicrodesc routerMicrodesc) {

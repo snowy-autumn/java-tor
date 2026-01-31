@@ -130,12 +130,21 @@ public class Circuit {
     }
 
     @SuppressWarnings("unchecked")
-    private <T extends Cell> T getRelayCell(short streamId, Byte... relayCommand) {
+    private <T extends Cell> T getRelayCell(short streamId, Byte... relayCommands) {
         try {
             pendingCellsLock.lock();
-            T found = (T) pendingCells.stream().filter(cell -> cell instanceof RelayCell relayCell &&
-                    Arrays.stream(relayCommand).anyMatch(command -> command == relayCell.getRelayCommand()) &&
-                    relayCell.getStreamId() == streamId).findFirst().orElse(null);
+            T found = null;
+            int cells = pendingCells.size();
+            for (int i = 0; i < cells; i++) {
+                if (!(pendingCells.get(i) instanceof RelayCell relayCell) || relayCell.getStreamId() != streamId) continue;
+                for (Byte command : relayCommands) {
+                    if (relayCell.getRelayCommand() == command) {
+                        found = (T) relayCell;
+                        break;
+                    }
+                }
+                if (found != null) break;
+            }
             if (found == null) return null;
             pendingCells.remove(found);
             return found;
@@ -159,7 +168,15 @@ public class Circuit {
     private <T extends Cell> T getCellByCommand(byte command) {
         try {
             pendingCellsLock.lock();
-            T found = (T) pendingCells.stream().filter(cell -> cell.getCommand() == command).findFirst().orElse(null);
+            T found = null;
+            int cells = pendingCells.size();
+            for (int i = 0; i < cells; i++) {
+                Cell cell;
+                if ((cell = pendingCells.get(i)).getCommand() == command) {
+                    found = (T) cell;
+                    break;
+                }
+            }
             if (found == null) return null;
             pendingCells.remove(found);
             return found;

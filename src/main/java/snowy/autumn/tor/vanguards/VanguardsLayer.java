@@ -4,7 +4,8 @@ import snowy.autumn.tor.directory.documents.RouterMicrodesc;
 import snowy.autumn.tor.relay.RouterMicrodescList;
 
 import java.time.Instant;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -35,21 +36,21 @@ public class VanguardsLayer implements RouterMicrodescList {
 
     Random random = new Random();
 
-    Vanguard[] vanguards;
+    ArrayList<Vanguard> vanguards;
     List<RouterMicrodesc> microdescs;
 
     public VanguardsLayer(List<RouterMicrodesc> microdescs, int size, RouterMicrodescList... otherLayers) {
-        this.vanguards = new Vanguard[size];
+        this.vanguards = new ArrayList<>(Collections.nCopies(size, null));
         this.microdescs = microdescs;
         for (int i = 0; i < size; i++) {
             rotateVanguard(i, otherLayers);
         }
     }
 
-    public VanguardsLayer(List<RouterMicrodesc> microdescs, Vanguard[] vanguards, RouterMicrodescList... otherLayers) {
+    public VanguardsLayer(List<RouterMicrodesc> microdescs, ArrayList<Vanguard> vanguards, RouterMicrodescList... otherLayers) {
         this.vanguards = vanguards;
         this.microdescs = microdescs;
-        for (int i = 0; i < vanguards.length; i++) {
+        for (int i = 0; i < vanguards.size(); i++) {
             if (!vanguardExistsInConsensus(i)) {
                 rotateVanguard(i, otherLayers);
             }
@@ -57,31 +58,58 @@ public class VanguardsLayer implements RouterMicrodescList {
     }
 
     private void rotateVanguard(int index, RouterMicrodescList[] layers) {
-        List<RouterMicrodesc> microdescs = this.microdescs.stream()
-                .filter(microdesc ->
-                        Arrays.stream(vanguards).noneMatch(vanguard -> vanguard != null && vanguard.getRouterMicrodesc().equals(microdesc)))
-                .filter(microdesc ->
-                        Arrays.stream(layers).noneMatch(layer ->
-                                layer.getMicrodescs().stream()
-                                        .anyMatch(routerMicrodesc -> routerMicrodesc != null && routerMicrodesc.equals(microdesc))))
-                .toList();
-        // Todo: Replace this temporary random distribution with the actual relevant distribution.
-        vanguards[index] = new Vanguard(microdescs.get(random.nextInt(microdescs.size())), Instant.now().getEpochSecond() + (long) new Random().nextInt(3, 14) * 60 * 60 * 24);
+        // Here I used a double loop solution, instead of the old stream one, to save memory.
+        // There probably is a much better solution, but right now, this works fine.
+        int filtered = 0;
+        for (RouterMicrodesc routerMicrodesc : microdescs) {
+            if (routerMicrodesc == null) continue;
+            boolean exists = false;
+            for (Vanguard vanguard : vanguards) {
+                if (vanguard != null && vanguard.getRouterMicrodesc().equals(routerMicrodesc)) {
+                    exists = true;
+                    break;
+                }
+            }
+            for (RouterMicrodescList layer : layers) {
+                if (exists = layer.getMicrodescs().contains(routerMicrodesc))
+                    break;
+            }
+            if (!exists) filtered++;
+        }
+        for (RouterMicrodesc routerMicrodesc : microdescs) {
+            if (routerMicrodesc == null) continue;
+            boolean exists = false;
+            for (Vanguard vanguard : vanguards) {
+                if (vanguard != null && vanguard.getRouterMicrodesc().equals(routerMicrodesc)) {
+                    exists = true;
+                    break;
+                }
+            }
+            for (RouterMicrodescList layer : layers) {
+                if (exists = layer.getMicrodescs().contains(routerMicrodesc))
+                    break;
+            }
+            if (!exists && --filtered == 0) {
+                // Todo: Replace this temporary random distribution with the actual relevant distribution.
+                vanguards.set(index, new Vanguard(routerMicrodesc, Instant.now().getEpochSecond() + (long) new Random().nextInt(3, 14) * 60 * 60 * 24));
+                break;
+            }
+        }
     }
 
     private boolean vanguardExistsInConsensus(int index) {
-        return microdescs.stream().anyMatch(microdesc -> vanguards[index].getRouterMicrodesc().equals(microdesc));
+        return microdescs.stream().anyMatch(microdesc -> vanguards.get(index).getRouterMicrodesc().equals(microdesc));
     }
 
     public Vanguard getRandom() {
-        return vanguards[random.nextInt(vanguards.length)];
+        return vanguards.get(random.nextInt(vanguards.size()));
     }
 
     public Vanguard replaceBadVanguard(RouterMicrodesc routerMicrodesc, RouterMicrodescList... otherLayers) {
-        for (int i = 0; i < vanguards.length; i++) {
-            if (vanguards[i].getRouterMicrodesc().equals(routerMicrodesc)) {
+        for (int i = 0; i < vanguards.size(); i++) {
+            if (vanguards.get(i).getRouterMicrodesc().equals(routerMicrodesc)) {
                 rotateVanguard(i, otherLayers);
-                return vanguards[i];
+                return vanguards.get(i);
             }
         }
         return null;
@@ -89,24 +117,24 @@ public class VanguardsLayer implements RouterMicrodescList {
 
     public void fixAll(RouterMicrodescList... otherLayers) {
         // Todo: Change the client's behaviour so that if we're trying to fetch a new microdesc consensus, vanguards will not be rotated but simply removed.
-        for (int i = 0; i < vanguards.length; i++) {
-            if (vanguards[i] == null || vanguards[i].shouldRotate()) {
+        for (int i = 0; i < vanguards.size(); i++) {
+            if (vanguards.get(i) == null || vanguards.get(i).shouldRotate()) {
                 rotateVanguard(i, otherLayers);
             }
         }
     }
 
-    public Vanguard[] getVanguards() {
+    public ArrayList<Vanguard> getVanguards() {
         return vanguards;
     }
 
     public void setVanguard(int index, Vanguard vanguard) {
-        vanguards[index] = vanguard;
+        vanguards.set(index, vanguard);
     }
 
     @Override
     public List<RouterMicrodesc> getMicrodescs() {
-        return Arrays.stream(vanguards).map(Vanguard::getRouterMicrodesc).toList();
+        return vanguards.stream().map(Vanguard::getRouterMicrodesc).toList();
     }
 
 }

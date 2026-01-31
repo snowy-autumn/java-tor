@@ -153,7 +153,7 @@ public class Directory {
     }
 
     public boolean fetchMicrodescriptors(List<RouterMicrodesc> microdescs) {
-        String requestPath = String.join("-", microdescs.stream().map(RouterMicrodesc::getMicrodescHash).toList());
+        String requestPath = String.join("-", microdescs.stream().map(RouterMicrodesc::getEncodedMicrodescHash).toList());
         String response = httpRequest("GET /tor/micro/d/" + requestPath + " HTTP/1.0\r\n\r\n");
         if (response == null) return false;
         String[] microdescriptors = response.substring(response.indexOf("onion-key\n") + "onion-key\n".length()).split("onion-key\n");

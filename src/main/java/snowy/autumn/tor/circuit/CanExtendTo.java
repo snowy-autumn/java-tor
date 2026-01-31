@@ -20,7 +20,7 @@ public interface CanExtendTo {
     }
 
     static boolean equals(CanExtendTo a, CanExtendTo b) {
-        if (a instanceof RouterMicrodesc aRM && b instanceof RouterMicrodesc bRM) return aRM.getMicrodescHash().equals(bRM.getMicrodescHash());
+        if (a instanceof RouterMicrodesc aRM && b instanceof RouterMicrodesc bRM) return Arrays.equals(aRM.getMicrodescHash(), bRM.getMicrodescHash());
         return Arrays.equals(getFingerprint(a), getFingerprint(b)) && Arrays.equals(getEd25519Id(a), getEd25519Id(b));
     }
 

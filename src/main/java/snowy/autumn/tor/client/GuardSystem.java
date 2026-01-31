@@ -121,6 +121,6 @@ public class GuardSystem implements RouterMicrodescList {
 
     @Override
     public List<RouterMicrodesc> getMicrodescs() {
-        return new ArrayList<>(sampled);
+        return sampled;
     }
 }

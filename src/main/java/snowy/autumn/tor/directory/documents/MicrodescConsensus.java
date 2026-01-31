@@ -65,7 +65,7 @@ public class MicrodescConsensus {
         List<List<RouterMicrodesc>> chunks = IntStream.range(0, (microdescs.size() + maxPerMirror - 1) / maxPerMirror)
                 .mapToObj(i -> microdescs.subList(i * maxPerMirror, Math.min(microdescs.size(), (i + 1) * maxPerMirror))
                         .stream().sorted((a, b) ->
-                                Arrays.compareUnsigned(Base64.getDecoder().decode(b.getMicrodescHash()), Base64.getDecoder().decode(a.getMicrodescHash())))
+                                Arrays.compareUnsigned(b.getMicrodescHash(), a.getMicrodescHash()))
                         .toList()).toList();
 
         for (int chunkIndex = 0; chunkIndex < chunks.size(); chunkIndex++) {
@@ -250,7 +250,7 @@ public class MicrodescConsensus {
     }
 
     public RouterMicrodesc findWithHash(byte[] microdescHash) {
-        return microdescs.stream().filter(microdesc -> Arrays.equals(Base64.getDecoder().decode(microdesc.getMicrodescHash()), microdescHash)).findFirst().orElse(null);
+        return microdescs.stream().filter(microdesc -> Arrays.equals(microdesc.getMicrodescHash(), microdescHash)).findFirst().orElse(null);
     }
 
 	public static List<RouterMicrodesc> getAllWithFlags(List<RouterMicrodesc> microdescs, byte... flags) {

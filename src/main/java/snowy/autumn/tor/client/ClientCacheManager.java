@@ -18,7 +18,6 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.DeflaterOutputStream;
@@ -133,7 +132,7 @@ public class ClientCacheManager {
         // Store the router's ntor onion key.
         outputStream.write(routerMicrodesc.getNtorOnionKey());
         // Store the microdesc hash.
-        outputStream.write(Base64.getDecoder().decode(routerMicrodesc.getMicrodescHash()));
+        outputStream.write(routerMicrodesc.getMicrodescHash());
         // Store a boolean value indicating whether the router has an ipv6 address.
         outputStream.write(hasIpv6);
         // If it does, then store the ipv6 address and port of the router.
@@ -265,30 +264,30 @@ public class ClientCacheManager {
             outputStream.writeShort((short) guardSystem.getSampled().size());
             // Store the sampled relays' microdesc hashes.
             for (RouterMicrodesc sampled : guardSystem.getSampled()) {
-                outputStream.write(Base64.getDecoder().decode(sampled.getMicrodescHash()));
+                outputStream.write(sampled.getMicrodescHash());
             }
             // Store the number of filtered relays.
             outputStream.writeShort((short) guardSystem.getFiltered().size());
             // Store the filtered relays' microdesc hashes.
             for (RouterMicrodesc filtered : guardSystem.getFiltered()) {
-                outputStream.write(Base64.getDecoder().decode(filtered.getMicrodescHash()));
+                outputStream.write(filtered.getMicrodescHash());
             }
             // Store the number of primary guards.
             outputStream.writeShort((short) guardSystem.getPrimary().size());
             // Store the primary guards' microdesc hashes and lifetimes (long).
             for (Guard.GuardInfo primary : guardSystem.getPrimary()) {
                 // Store the guard's microdesc hash.
-                outputStream.write(Base64.getDecoder().decode(primary.guardMicrodesc().getMicrodescHash()));
+                outputStream.write(primary.guardMicrodesc().getMicrodescHash());
                 // Store the guard's lifetime (currently a constant 0 as guard lifetimes are not being accounted for at the moment).
                 outputStream.writeLong(0);
             }
             // Serialise the vanguards.
             // Store the number of second layer vanguards.
-            outputStream.writeShort((short) vanguardsLite.getSecondLayer().getVanguards().length);
+            outputStream.writeShort((short) vanguardsLite.getSecondLayer().getVanguards().size());
             // Store the second layer vanguards.
             for (VanguardsLayer.Vanguard vanguard : vanguardsLite.getSecondLayer().getVanguards()) {
                 // Store the vanguard's microdesc hash.
-                outputStream.write(Base64.getDecoder().decode(vanguard.getRouterMicrodesc().getMicrodescHash()));
+                outputStream.write(vanguard.getRouterMicrodesc().getMicrodescHash());
                 // Store the vanguard's rotation time (long).
                 outputStream.writeLong(vanguard.getRotate());
             }
