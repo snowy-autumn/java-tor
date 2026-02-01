@@ -17,6 +17,7 @@ import snowy.autumn.tor.relay.Relay;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class Circuit {
@@ -30,6 +31,7 @@ public class Circuit {
     HashSet<byte[]> lastDigests = new HashSet<>();
     ReentrantLock lastDigestsLock = new ReentrantLock();
     private final ReentrantLock pendingCellsLock = new ReentrantLock();
+    private final Condition pendingCellsCondition = pendingCellsLock.newCondition();
     HashMap<Short, Stream> streamDataHashMap = new HashMap<>();
     private final ReentrantLock streamsLock = new ReentrantLock();
     private static final byte NOT_SET = -2;
@@ -120,6 +122,7 @@ public class Circuit {
         }
 
         pendingCells.add(cell);
+        pendingCellsCondition.signalAll();
         pendingCellsLock.unlock();
         truncateLock.unlock();
     }
@@ -131,26 +134,21 @@ public class Circuit {
 
     @SuppressWarnings("unchecked")
     private <T extends Cell> T getRelayCell(short streamId, Byte... relayCommands) {
-        try {
-            pendingCellsLock.lock();
-            T found = null;
-            int cells = pendingCells.size();
-            for (int i = 0; i < cells; i++) {
-                if (!(pendingCells.get(i) instanceof RelayCell relayCell) || relayCell.getStreamId() != streamId) continue;
-                for (Byte command : relayCommands) {
-                    if (relayCell.getRelayCommand() == command) {
-                        found = (T) relayCell;
-                        break;
-                    }
+        T found = null;
+        int cells = pendingCells.size();
+        for (int i = 0; i < cells; i++) {
+            if (!(pendingCells.get(i) instanceof RelayCell relayCell) || relayCell.getStreamId() != streamId) continue;
+            for (Byte command : relayCommands) {
+                if (relayCell.getRelayCommand() == command) {
+                    found = (T) relayCell;
+                    break;
                 }
-                if (found != null) break;
             }
-            if (found == null) return null;
-            pendingCells.remove(found);
-            return found;
-        } finally {
-            pendingCellsLock.unlock();
+            if (found != null) break;
         }
+        if (found == null) return null;
+        pendingCells.remove(found);
+        return found;
     }
 
     public boolean isConnected() {
@@ -159,37 +157,51 @@ public class Circuit {
 
     public <T extends Cell> T waitForRelayCell(short streamId, Byte... relayCommand) {
         T cell = null;
-        while (cell == null && (isConnected() || !pendingCells.isEmpty()))
-            cell = getRelayCell(streamId, relayCommand);
+        try {
+            pendingCellsLock.lock();
+            while (isConnected() || !pendingCells.isEmpty()) {
+                if ((cell = getRelayCell(streamId, relayCommand)) != null) break;
+                pendingCellsCondition.await();
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            pendingCellsLock.unlock();
+        }
         return cell;
     }
 
     @SuppressWarnings("unchecked")
     private <T extends Cell> T getCellByCommand(byte command) {
-        try {
-            pendingCellsLock.lock();
-            T found = null;
-            int cells = pendingCells.size();
-            for (int i = 0; i < cells; i++) {
-                Cell cell;
-                if ((cell = pendingCells.get(i)).getCommand() == command) {
-                    found = (T) cell;
-                    break;
-                }
+        T found = null;
+        int cells = pendingCells.size();
+        for (int i = 0; i < cells; i++) {
+            Cell cell;
+            if ((cell = pendingCells.get(i)).getCommand() == command) {
+                found = (T) cell;
+                break;
             }
-            if (found == null) return null;
-            pendingCells.remove(found);
-            return found;
-        } finally {
-            pendingCellsLock.unlock();
         }
+        if (found == null) return null;
+        pendingCells.remove(found);
+        return found;
     }
 
     private <T extends Cell> T waitForCellByCommand(byte command) {
         // Todo: Add timeout.
         T cell = null;
-        while (cell == null && (guard.isConnected() && (isConnected() || connected == NOT_SET || !pendingCells.isEmpty())))
-            cell = getCellByCommand(command);
+        try {
+            pendingCellsLock.lock();
+            while (guard.isConnected() && (isConnected() || connected == NOT_SET || !pendingCells.isEmpty())) {
+                if ((cell = getCellByCommand(command)) != null) break;
+                pendingCellsCondition.await();
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            pendingCellsLock.unlock();
+        }
+
         return cell;
     }
 
@@ -360,13 +372,22 @@ public class Circuit {
         boolean success = sendCell(new DestroyCell(circuitId, connected = DestroyCell.DestroyReason.NONE.getReason()));
         guard.removeCircuit(circuitId);
         if (terminateGuard) guard.terminate();
+        shutdownCleanup();
         return success;
     }
 
     public void destroyed(byte reason) {
         connected = reason;
+        shutdownCleanup();
     }
 
+    private void shutdownCleanup() {
+        pendingCellsLock.lock();
+        pendingCellsCondition.signalAll();
+        pendingCellsLock.unlock();
+    }
+
+    // Not used by the tor protocol at the moment, but still implemented.
     public boolean truncate(int level) {
         // Levels here start from 0, since you can't truncate zero nodes and so there's no point in starting from 1.
         truncateLock.lock();

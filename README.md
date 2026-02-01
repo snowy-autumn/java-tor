@@ -11,7 +11,10 @@ It is only meant to be used when access to the tor network is required but priva
 - It is possible to connect to v3 hidden services.
 
 Overall, the system is working but might not handle everything it encounters.
-Personally, I tested the system by hooking it to a simple socks5 proxy server, and managed to watch a YouTube video at 1080 with absolutely no issues, and it managed pretty fine in a few other cases I tested. (This is not necessarily indicative of what you should expect, just my personal experience with the current state of the project)
+
+Personally, I tested the system by hooking it to a simple socks5 proxy server, and managed to watch a YouTube video at 1080 while downloading a file in the background at about 400+KBps, with absolutely no issues, and it managed pretty fine in a few other tests I threw at it.
+
+(Note: This is not necessarily indicative of what you should expect, just my personal experience with the current state of the project)
 
 ---
 ## Usage on Android
